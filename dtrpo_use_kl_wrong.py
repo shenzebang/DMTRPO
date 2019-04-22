@@ -72,7 +72,7 @@ for args.batch_size, num_workers in [(500,10), (500,25), (2000,10), (5000,10), (
             running_state = ZFilter((env.observation_space.shape[0],), clip=5)
 
             #num_workers = 10
-            logdir = "./DTRPO/%s/batchsize_%d_nworkers_%d_%d"%(str(args.env_name), batch_size, num_workers, n_repeate)
+            logdir = "./DTRPO_wrong/%s/batchsize_%d_nworkers_%d_%d"%(str(args.env_name), batch_size, num_workers, n_repeate)
             writer = SummaryWriter(logdir)
 
 
@@ -298,12 +298,12 @@ for args.batch_size, num_workers in [(500,10), (500,25), (2000,10), (5000,10), (
                     memories.append(batch)
                     rewards.append(reward)
                 for memory in memories:
-                    policy_gradients.append(compute_PG(memory).numpy())
-                pg = np.array(policy_gradients).mean(axis=0)
-                pg = torch.from_numpy(pg)
+                    policy_gradients.append(compute_PG(memory))
+                #pg = np.array(policy_gradients).mean(axis=0)
+                #pg = torch.from_numpy(pg)
 
-                for memory in memories:
-                    stepdirs.append(conjugate_gradient(memory, pg).numpy())
+                for i in range(len(memories)):
+                    stepdirs.append(conjugate_gradient(memories[i], policy_gradients[i]).numpy())
                 fullstep = np.array(stepdirs).mean(axis=0)
                 fullstep = torch.from_numpy(fullstep)
 
