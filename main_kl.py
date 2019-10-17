@@ -53,101 +53,116 @@ parser.add_argument('--log-interval', type=int, default=1, metavar='N',
                     help='interval between training status logs (default: 10)')
 args = parser.parse_args()
 
-for args.env_name in ["Swimmer-v2", "Walker2d-v2", "Reacher-v2", "Hopper-v2", "Ant-v2", "HalfCheetah-v2"]:
-    for args.batch_size in [5000, 15000, 25000, 50000]:
-        env = gym.make(args.env_name)
+for args.env_name in ["Reacher-v2"]:
+    for args.batch_size in [5000]:
+        for args.seed in [543]:
+            env = gym.make(args.env_name)
 
-        num_inputs = env.observation_space.shape[0]
-        num_actions = env.action_space.shape[0]
+            num_inputs = env.observation_space.shape[0]
+            num_actions = env.action_space.shape[0]
 
-        env.seed(args.seed)
-        torch.manual_seed(args.seed)
+            env.seed(args.seed)
+            torch.manual_seed(args.seed)
 
-        policy_net = Policy(num_inputs, num_actions)
-        value_net = Value(num_inputs)
-        logdir = "./TRPO/%s/batchsize_%d"%(args.env_name, args.batch_size)
-        writer = SummaryWriter(logdir)
+            policy_net = Policy(num_inputs, num_actions)
+            value_net = Value(num_inputs)
+            logdir = "./TRPO/%s/batchsize_%d_%d"%(args.env_name, args.batch_size, args.seed)
+            writer = SummaryWriter(logdir)
 
-        def select_action(state):
-            state = torch.from_numpy(state).unsqueeze(0)
-            action_mean, _, action_std = policy_net(Variable(state))
-            action = torch.normal(action_mean, action_std)
-            return action
+            def select_action(state):
+                state = torch.from_numpy(state).unsqueeze(0)
+                action_mean, _, action_std = policy_net(Variable(state))
+                action = torch.normal(action_mean, action_std)
+                return action
 
-        def update_params(batch):
-            rewards = torch.Tensor(batch.reward)
-            masks = torch.Tensor(batch.mask)
-            actions = torch.Tensor(np.concatenate(batch.action, 0)) # why concatenate zero?
-            states = torch.Tensor(batch.state)
-            values = value_net(Variable(states))
+            def update_params(batch):
+                rewards = torch.Tensor(batch.reward)
+                masks = torch.Tensor(batch.mask)
+                actions = torch.Tensor(np.concatenate(batch.action, 0)) # why concatenate zero?
+                states = torch.Tensor(batch.state)
+                values = value_net(Variable(states))
 
-            returns = torch.Tensor(actions.size(0),1)
-            deltas = torch.Tensor(actions.size(0),1)
-            advantages = torch.Tensor(actions.size(0),1)
+                returns = torch.Tensor(actions.size(0),1)
+                deltas = torch.Tensor(actions.size(0),1)
+                advantages = torch.Tensor(actions.size(0),1)
 
-            prev_return = 0
-            prev_value = 0
-            prev_advantage = 0
-            for i in reversed(range(rewards.size(0))):
-                returns[i] = rewards[i] + args.gamma * prev_return * masks[i]
-                deltas[i] = rewards[i] + args.gamma * prev_value * masks[i] - values.data[i]
-                advantages[i] = deltas[i] + args.gamma * args.tau * prev_advantage * masks[i]
+                prev_return = 0
+                prev_value = 0
+                prev_advantage = 0
+                for i in reversed(range(rewards.size(0))):
+                    returns[i] = rewards[i] + args.gamma * prev_return * masks[i]
+                    deltas[i] = rewards[i] + args.gamma * prev_value * masks[i] - values.data[i]
+                    advantages[i] = deltas[i] + args.gamma * args.tau * prev_advantage * masks[i]
 
-                prev_return = returns[i, 0]
-                prev_value = values.data[i, 0]
-                prev_advantage = advantages[i, 0]
+                    prev_return = returns[i, 0]
+                    prev_value = values.data[i, 0]
+                    prev_advantage = advantages[i, 0]
 
-            targets = Variable(returns)
+                targets = Variable(returns)
 
-            # Original code uses the same LBFGS to optimize the value loss
-            def get_value_loss(flat_params):
+                # Original code uses the same LBFGS to optimize the value loss
+                def get_value_loss(flat_params):
+                    set_flat_params_to(value_net, torch.Tensor(flat_params))
+                    for param in value_net.parameters():
+                        if param.grad is not None:
+                            param.grad.data.fill_(0)
+
+                    values_ = value_net(Variable(states))
+
+                    value_loss = (values_ - targets).pow(2).mean()
+
+                    # weight decay
+                    for param in value_net.parameters():
+                        value_loss += param.pow(2).sum() * args.l2_reg
+                    value_loss.backward()
+                    return (value_loss.data.double().numpy(), get_flat_grad_from(value_net).data.double().numpy())
+
+                flat_params, _, opt_info = scipy.optimize.fmin_l_bfgs_b(get_value_loss, get_flat_params_from(value_net).double().numpy(), maxiter=25)
                 set_flat_params_to(value_net, torch.Tensor(flat_params))
-                for param in value_net.parameters():
-                    if param.grad is not None:
-                        param.grad.data.fill_(0)
 
-                values_ = value_net(Variable(states))
+                advantages = (advantages - advantages.mean()) / advantages.std()
 
-                value_loss = (values_ - targets).pow(2).mean()
+                action_means, action_log_stds, action_stds = policy_net(Variable(states))
+                fixed_log_prob = normal_log_density(Variable(actions), action_means, action_log_stds, action_stds).data.clone()
 
-                # weight decay
-                for param in value_net.parameters():
-                    value_loss += param.pow(2).sum() * args.l2_reg
-                value_loss.backward()
-                return (value_loss.data.double().numpy(), get_flat_grad_from(value_net).data.double().numpy())
-
-            flat_params, _, opt_info = scipy.optimize.fmin_l_bfgs_b(get_value_loss, get_flat_params_from(value_net).double().numpy(), maxiter=25)
-            set_flat_params_to(value_net, torch.Tensor(flat_params))
-
-            advantages = (advantages - advantages.mean()) / advantages.std()
-
-            action_means, action_log_stds, action_stds = policy_net(Variable(states))
-            fixed_log_prob = normal_log_density(Variable(actions), action_means, action_log_stds, action_stds).data.clone()
-
-            def get_loss(volatile=False):
-                if volatile:
-                    with torch.no_grad():
+                def get_loss(volatile=False):
+                    if volatile:
+                        with torch.no_grad():
+                            action_means, action_log_stds, action_stds = policy_net(Variable(states))
+                    else:
                         action_means, action_log_stds, action_stds = policy_net(Variable(states))
-                else:
-                    action_means, action_log_stds, action_stds = policy_net(Variable(states))
 
-                #print(action_log_stds)
-                log_prob = normal_log_density(Variable(actions), action_means, action_log_stds, action_stds)
-                action_loss = -Variable(advantages) * torch.exp(log_prob - Variable(fixed_log_prob))
-                return action_loss.mean()
+                    #print(action_log_stds)
+                    log_prob = normal_log_density(Variable(actions), action_means, action_log_stds, action_stds)
+                    action_loss = -Variable(advantages) * torch.exp(log_prob - Variable(fixed_log_prob))
+                    return action_loss.mean()
 
 
-            def get_kl():
-                mean1, log_std1, std1 = policy_net(Variable(states))
+                def get_kl():
+                    mean1, log_std1, std1 = policy_net(Variable(states))
 
-                mean0 = Variable(mean1.data)
-                log_std0 = Variable(log_std1.data)
-                std0 = Variable(std1.data)
-                kl = log_std1 - log_std0 + (std0.pow(2) + (mean0 - mean1).pow(2)) / (2.0 * std1.pow(2)) - 0.5
-                #print(kl)
-                return kl.sum(1, keepdim=True)
+                    mean0 = Variable(mean1.data)
+                    log_std0 = Variable(log_std1.data)
+                    std0 = Variable(std1.data)
+                    kl = log_std1 - log_std0 + (std0.pow(2) + (mean0 - mean1).pow(2)) / (2.0 * std1.pow(2)) - 0.5
+                    #print(kl)
+                    return kl.sum(1, keepdim=True)
 
-            def get_kl_real(xold, xnew):
+                def get_kl_real(xold, xnew):
+                    states = torch.Tensor(batch.state)
+                    params = get_flat_params_from(policy_net)
+                    set_flat_params_to(policy_net, xold)
+                    mean0, log_std0, std0 = policy_net(Variable(states))
+                    set_flat_params_to(policy_net, xnew)
+                    mean1, log_std1, std1 = policy_net(Variable(states))
+                    kl = log_std1 - log_std0 + (std0.pow(2) + (mean0 - mean1).pow(2)) / (2.0 * std1.pow(2)) - 0.5
+                    set_flat_params_to(policy_net, params)
+                    # print(kl.sum(1, keepdim=True))
+                    return kl.sum(1, keepdim=True)
+
+                trpo_step(policy_net, get_loss, get_kl, args.max_kl, args.damping, get_kl_real)
+
+            def get_kl_real(batch, xold, xnew):
                 states = torch.Tensor(batch.state)
                 params = get_flat_params_from(policy_net)
                 set_flat_params_to(policy_net, xold)
@@ -156,71 +171,57 @@ for args.env_name in ["Swimmer-v2", "Walker2d-v2", "Reacher-v2", "Hopper-v2", "A
                 mean1, log_std1, std1 = policy_net(Variable(states))
                 kl = log_std1 - log_std0 + (std0.pow(2) + (mean0 - mean1).pow(2)) / (2.0 * std1.pow(2)) - 0.5
                 set_flat_params_to(policy_net, params)
-                # print(kl.sum(1, keepdim=True))
+                #print(kl.sum(1, keepdim=True))
                 return kl.sum(1, keepdim=True)
 
-            trpo_step(policy_net, get_loss, get_kl, args.max_kl, args.damping, get_kl_real)
+            running_state = ZFilter((num_inputs,), clip=5)
+            running_reward = ZFilter((1,), demean=False, clip=10)
 
-        def get_kl_real(batch, xold, xnew):
-            states = torch.Tensor(batch.state)
-            params = get_flat_params_from(policy_net)
-            set_flat_params_to(policy_net, xold)
-            mean0, log_std0, std0 = policy_net(Variable(states))
-            set_flat_params_to(policy_net, xnew)
-            mean1, log_std1, std1 = policy_net(Variable(states))
-            kl = log_std1 - log_std0 + (std0.pow(2) + (mean0 - mean1).pow(2)) / (2.0 * std1.pow(2)) - 0.5
-            set_flat_params_to(policy_net, params)
-            #print(kl.sum(1, keepdim=True))
-            return kl.sum(1, keepdim=True)
+            for i_episode in count(1):
+                memory = Memory()
 
-        running_state = ZFilter((num_inputs,), clip=5)
-        running_reward = ZFilter((1,), demean=False, clip=10)
+                num_steps = 0
+                reward_batch = 0
+                num_episodes = 0
+                while num_steps < args.batch_size:
+                    state = env.reset()
+                    state = running_state(state)
 
-        for i_episode in count(1):
-            memory = Memory()
+                    reward_sum = 0
+                    for t in range(10000): # Don't infinite loop while learning
+                        action = select_action(state)
+                        action = action.data[0].numpy()
+                        next_state, reward, done, _ = env.step(action)
+                        reward_sum += reward
 
-            num_steps = 0
-            reward_batch = 0
-            num_episodes = 0
-            while num_steps < args.batch_size:
-                state = env.reset()
-                state = running_state(state)
+                        next_state = running_state(next_state)
 
-                reward_sum = 0
-                for t in range(10000): # Don't infinite loop while learning
-                    action = select_action(state)
-                    action = action.data[0].numpy()
-                    next_state, reward, done, _ = env.step(action)
-                    reward_sum += reward
+                        mask = 1
+                        if done:
+                            mask = 0
 
-                    next_state = running_state(next_state)
+                        memory.push(state, np.array([action]), mask, next_state, reward)
 
-                    mask = 1
-                    if done:
-                        mask = 0
+                        if args.render:
+                            env.render()
+                        if done:
+                            break
 
-                    memory.push(state, np.array([action]), mask, next_state, reward)
+                        state = next_state
+                    num_steps += (t-1)
+                    num_episodes += 1
+                    reward_batch += reward_sum
 
-                    if args.render:
-                        env.render()
-                    if done:
-                        break
+                reward_batch /= num_episodes
+                batch = memory.sample()
+                params_old = get_flat_params_from(policy_net)
+                update_params(batch)
+                params_new = get_flat_params_from(policy_net)
+                print(get_kl_real(batch, params_old, params_new).mean())
 
-                    state = next_state
-                num_steps += (t-1)
-                num_episodes += 1
-                reward_batch += reward_sum
-
-            reward_batch /= num_episodes
-            batch = memory.sample()
-            params_old = get_flat_params_from(policy_net)
-            update_params(batch)
-            params_new = get_flat_params_from(policy_net)
-            print(get_kl_real(batch, params_old, params_new).mean())
-
-            if i_episode % args.log_interval == 0:
-                print('Episode {}\tLast reward: {}\tAverage reward {:.2f}'.format(
-                    i_episode, reward_sum, reward_batch))
-                writer.add_scalar("Avg_return", reward_batch, i_episode*args.batch_size)
-            if i_episode * args.batch_size > 1e6:
-                break
+                if i_episode % args.log_interval == 0:
+                    print('Episode {}\tLast reward: {}\tAverage reward {:.2f}'.format(
+                        i_episode, reward_sum, reward_batch))
+                    writer.add_scalar("Avg_return", reward_batch, i_episode*args.batch_size)
+                if i_episode * args.batch_size > 2e6:
+                    break

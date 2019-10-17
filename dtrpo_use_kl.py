@@ -15,6 +15,7 @@ from utils import *
 from worker import Worker
 from running_state import ZFilter
 from replay_memory import Memory
+from envs.mujoco.half_cheetah import HalfCheetahVelEnv_FL
 
 torch.utils.backcompat.broadcast_warning.enabled = True
 torch.utils.backcompat.keepdim_warning.enabled = True
@@ -41,7 +42,7 @@ parser.add_argument('--tau', type=float, default=0.97, metavar='G',
                     help='gae (default: 0.97)')
 parser.add_argument('--l2-reg', type=float, default=1e-3, metavar='G',
                     help='l2 regularization regression (default: 1e-3)')
-parser.add_argument('--max-kl', type=float, default=1e-2, metavar='G',
+parser.add_argument('--max-kl', type=float, default=1e-1, metavar='G',
                     help='max kl value (default: 1e-2)')
 parser.add_argument('--damping', type=float, default=1e-1, metavar='G',
                     help='damping (default: 1e-1)')
@@ -54,9 +55,9 @@ parser.add_argument('--render', action='store_true',
 parser.add_argument('--log-interval', type=int, default=1, metavar='N',
                     help='interval between training status logs (default: 10)')
 args = parser.parse_args()
-for args.batch_size, num_workers in [(500,10), (500,25), (2000,10), (5000,10), (2000, 25)]:
-    for args.env_name in ["Reacher-v2", "Hopper-v2", "Ant-v2", "HalfCheetah-v2", "Swimmer-v2"]:
-        for n_repeate in range(1):
+for args.batch_size, num_workers in [(1000,1)]:
+    for args.env_name in ["Humanoid-v2"]:
+        for args.seed in [1]:
             gamma = args.gamma
             tau = args.tau
             damping = args.damping
@@ -72,7 +73,7 @@ for args.batch_size, num_workers in [(500,10), (500,25), (2000,10), (5000,10), (
             running_state = ZFilter((env.observation_space.shape[0],), clip=5)
 
             #num_workers = 10
-            logdir = "./DTRPO/%s/batchsize_%d_nworkers_%d_%d"%(str(args.env_name), batch_size, num_workers, n_repeate)
+            logdir = "./DTRPO/%s/batchsize_%d_nworkers_%d_%d"%(str(args.env_name), batch_size, num_workers, args.seed)
             writer = SummaryWriter(logdir)
 
 
@@ -323,7 +324,7 @@ for args.batch_size, num_workers in [(500,10), (500,25), (2000,10), (5000,10), (
                     new_loss = np.array(new_losses).mean()
                     kl = np.array(kls).mean()
                     print(new_loss - fval, kl)
-                    if new_loss - fval < 0 and kl < 0.1:
+                    if new_loss - fval < 0 and kl < 0.01:
                         print("Step accepted!")
                         set_flat_params_to(policy_net, xnew)
                         writer.add_scalar("n_backtracks", n_backtracks, i_episode)
@@ -337,5 +338,5 @@ for args.batch_size, num_workers in [(500,10), (500,25), (2000,10), (5000,10), (
                     print('Episode {}\tAverage reward {:.2f}'.format(
                         i_episode, average_reward))
                     writer.add_scalar("Avg_return", average_reward, i_episode*num_workers*batch_size)
-                if i_episode * num_workers * batch_size > 1e6:
+                if i_episode * num_workers * batch_size > 2e6:
                     break

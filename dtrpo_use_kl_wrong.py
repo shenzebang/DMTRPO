@@ -54,9 +54,9 @@ parser.add_argument('--render', action='store_true',
 parser.add_argument('--log-interval', type=int, default=1, metavar='N',
                     help='interval between training status logs (default: 10)')
 args = parser.parse_args()
-for args.batch_size, num_workers in [(500,10), (500,25), (2000,10), (5000,10), (2000, 25)]:
-    for args.env_name in ["Reacher-v2", "Hopper-v2", "Ant-v2", "HalfCheetah-v2", "Swimmer-v2"]:
-        for n_repeate in range(1):
+for args.batch_size, num_workers in [(2500,10), (5000,10), (500,20), (500,50), (2500, 20)]:
+    for args.env_name in ["Reacher-v2", "Hopper-v2", "Ant-v2", "HalfCheetah-v2"]:
+        for args.seed in [1, 11, 21]:
             gamma = args.gamma
             tau = args.tau
             damping = args.damping
@@ -72,7 +72,7 @@ for args.batch_size, num_workers in [(500,10), (500,25), (2000,10), (5000,10), (
             running_state = ZFilter((env.observation_space.shape[0],), clip=5)
 
             #num_workers = 10
-            logdir = "./DTRPO_wrong/%s/batchsize_%d_nworkers_%d_%d"%(str(args.env_name), batch_size, num_workers, n_repeate)
+            logdir = "./DTRPO_wrong/%s/batchsize_%d_nworkers_%d_%d"%(str(args.env_name), batch_size, num_workers, args.seed)
             writer = SummaryWriter(logdir)
 
 
@@ -323,7 +323,7 @@ for args.batch_size, num_workers in [(500,10), (500,25), (2000,10), (5000,10), (
                     new_loss = np.array(new_losses).mean()
                     kl = np.array(kls).mean()
                     print(new_loss - fval, kl)
-                    if new_loss - fval < 0 and kl < 0.1:
+                    if new_loss - fval < 0 and kl < 0.01:
                         print("Step accepted!")
                         set_flat_params_to(policy_net, xnew)
                         writer.add_scalar("n_backtracks", n_backtracks, i_episode)
@@ -337,5 +337,5 @@ for args.batch_size, num_workers in [(500,10), (500,25), (2000,10), (5000,10), (
                     print('Episode {}\tAverage reward {:.2f}'.format(
                         i_episode, average_reward))
                     writer.add_scalar("Avg_return", average_reward, i_episode*num_workers*batch_size)
-                if i_episode * num_workers * batch_size > 1e6:
+                if i_episode * num_workers * batch_size > 2e6:
                     break

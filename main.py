@@ -144,6 +144,18 @@ def update_params(batch):
 
     trpo_step(policy_net, get_loss, get_kl, args.max_kl, args.damping)
 
+def get_kl_real(batch, xold, xnew):
+    states = torch.Tensor(batch.state)
+    params = get_flat_params_from(policy_net)
+    set_flat_params_to(policy_net, xold)
+    mean0, log_std0, std0 = policy_net(Variable(states))
+    set_flat_params_to(policy_net, xnew)
+    mean1, log_std1, std1 = policy_net(Variable(states))
+    kl = log_std1 - log_std0 + (std0.pow(2) + (mean0 - mean1).pow(2)) / (2.0 * std1.pow(2)) - 0.5
+    set_flat_params_to(policy_net, params)
+    # print(kl.sum(1, keepdim=True))
+    return kl.sum(1, keepdim=True)
+
 running_state = ZFilter((num_inputs,), clip=5)
 running_reward = ZFilter((1,), demean=False, clip=10)
 
@@ -184,7 +196,10 @@ for i_episode in count(1):
 
     reward_batch /= num_episodes
     batch = memory.sample()
+    params_old = get_flat_params_from(policy_net)
     update_params(batch)
+    params_new = get_flat_params_from(policy_net)
+    print("kl:", get_kl_real(batch, params_old, params_new).mean())
 
     if i_episode % args.log_interval == 0:
         print('Episode {}\tLast reward: {}\tAverage reward {:.2f}'.format(

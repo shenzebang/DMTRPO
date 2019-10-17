@@ -26,6 +26,7 @@ def conjugate_gradients(Avp, b, nsteps, residual_tol=1e-10):
 
 def linesearch(model,
                f,
+               max_kl,
                x,
                fullstep,
                get_kl_real,
@@ -41,7 +42,7 @@ def linesearch(model,
         print(fval, newfval)
         kl = get_kl_real(x, xnew).mean()
 
-        if kl < 0.1 and actual_improve.item() > 0:
+        if kl < max_kl and actual_improve.item() > 0:
             print(_n_backtracks+1, "fval after", newfval.item())
             return True, xnew
     return False, x
@@ -76,7 +77,7 @@ def trpo_step(model, get_loss, get_kl, max_kl, damping, get_kl_real):
     print(("lagrange multiplier:", lm[0], "grad_norm:", loss_grad.norm()))
 
     prev_params = get_flat_params_from(model)
-    success, new_params = linesearch(model, get_loss, prev_params, fullstep,
+    success, new_params = linesearch(model, get_loss, max_kl, prev_params, fullstep,
                                      get_kl_real)
     set_flat_params_to(model, new_params)
 
