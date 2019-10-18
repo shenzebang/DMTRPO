@@ -56,9 +56,6 @@ def conjugate_gradient(policy_net, states, pg, max_kl=1e-3, cg_damping=1e-2, cg_
 
 
 def conjugate_gradient_parallel(policy_net, states_list, pg, max_kl=1e-3, cg_damping=1e-2, cg_iter=10, num_parallel_workers=mp.cpu_count()):
-    for param in policy_net.parameters():
-        print(param.requires_grad)
-        break
     result_ids = []
     for states, index in zip(states_list, range(len(states_list))):
         result_ids.append(conjugate_gradient.remote(

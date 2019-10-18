@@ -29,9 +29,8 @@ torch.utils.backcompat.keepdim_warning.enabled = True
 torch.set_default_tensor_type('torch.DoubleTensor')
 
 
-ray.init(object_store_memory=2000 * 1024 * 1024, redis_max_memory=2000 * 1024 * 1024)
-
 def main(args):
+    ray.init(num_cpus=args.num_workers)
     dtype = torch.double
     torch.set_default_dtype(dtype)
     env = gym.make(args.env_name)
@@ -111,12 +110,7 @@ def main(args):
         return kl
 
     for i_episode in count(1):
-        num_steps = 0
-        num_episodes = 0
-
         policy_gradients = [] # list of PGs
-        stepdirs = [] # list of F^-1 * PG
-
         losses = []
 
         print('Episode {}. Sampling trajectories...'.format(i_episode))
@@ -127,7 +121,7 @@ def main(args):
         print('Episode {}. Processing trajectories...'.format(i_episode))
         time_begin = time()
         advantages_list, returns_list, states_list, actions_list = \
-            estimate_advantages_parallel(memories, value_net, args.gamma, args.tau, num_parallel_workers=args.num_workers)
+            estimate_advantages_parallel(memories, value_net, args.gamma, args.tau)
         time_process = time() - time_begin
         print('Episode {}. Processing trajectories is done, using time {}'.format(i_episode, time_process))
         print('Episode {}. Computing policy gradients...'.format(i_episode))
@@ -141,7 +135,7 @@ def main(args):
         print('Episode {}. Computing the harmonic mean of natural gradient directions...'.format(i_episode))
         time_begin = time()
         stepdirs = conjugate_gradient_parallel(policy_net, states_list, pg,
-                                               args.max_kl, args.cg_damping, args.cg_iter, num_parallel_workers=args.num_workers)
+                                               args.max_kl, args.cg_damping, args.cg_iter)
         fullstep = np.array(stepdirs).mean(axis=0)
         fullstep = torch.from_numpy(fullstep)
         time_ng = time() - time_begin
@@ -154,6 +148,7 @@ def main(args):
             losses.append(trpo_loss(advantages, states, actions, prev_params, prev_params).detach().numpy())
         fval = np.array(losses).mean()
 
+        ls_flag = False
         for (n_backtracks, stepfrac) in enumerate(0.5 ** np.arange(10)):
             new_losses = []
             kls = []
@@ -163,17 +158,19 @@ def main(args):
                 kls.append(compute_kl(states, prev_params, xnew).detach().numpy())
             new_loss = np.array(new_losses).mean()
             kl = np.array(kls).mean()
-            print(new_loss - fval, kl)
+            # print(new_loss - fval, kl)
             if new_loss - fval < 0 and kl < 0.01:
-                print("Step accepted!")
                 set_flat_params_to(policy_net, xnew)
                 writer.add_scalar("n_backtracks", n_backtracks, i_episode)
+                ls_flag = True
                 break
-            else:
-                print("Backtrack:", n_backtracks + 1, "refused")
         time_ls = time() - time_begin
-        print('Episode {}. Linear search is done, using time {}'
-              .format(i_episode, time_ls))
+        if ls_flag:
+            print('Episode {}. Linear search is done in {} steps, using time {}'
+                  .format(i_episode, n_backtracks, time_ls))
+        else:
+            print('Episode {}. Linear search is done but failed, using time {}'
+                  .format(i_episode, time_ls))
 
         rewards = [log['avg_reward'] for log in logs]
         average_reward = np.array(rewards).mean()
@@ -188,8 +185,8 @@ def main(args):
 
 if __name__ == '__main__':
     import argparse
-    import multiprocessing as mp
-    mp.set_start_method('spawn')
+    # import multiprocessing as mp
+    # mp.set_start_method('spawn')
 
     parser = argparse.ArgumentParser(description='Harmonic Mean TRPO with iid Environment')
 
@@ -225,7 +222,7 @@ if __name__ == '__main__':
                         help='interval between training status logs (default: 10)')
     parser.add_argument('--device', type=str, default='cpu',
                         help='set the device (cpu or cuda)')
-    parser.add_argument('--num-workers', type=int, default=mp.cpu_count() - 1,
+    parser.add_argument('--num-workers', type=int, default=4,
                         help='number of workers for parallel computing')
 
     args = parser.parse_args()
