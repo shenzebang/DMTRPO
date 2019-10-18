@@ -18,14 +18,18 @@ from core.common_ray import estimate_advantages_parallel
 from torch.nn.utils.convert_parameters import parameters_to_vector
 import numpy as np
 from torch.distributions.kl import kl_divergence
-from core.natural_gradient import conjugate_gradient_parallel
+# from core.natural_gradient import conjugate_gradient_parallel
+from core.natural_gradient_ray import conjugate_gradient_parallel
 
 # from envs.mujoco.half_cheetah import HalfCheetahVelEnv_FL
+import ray
 
 torch.utils.backcompat.broadcast_warning.enabled = True
 torch.utils.backcompat.keepdim_warning.enabled = True
 torch.set_default_tensor_type('torch.DoubleTensor')
 
+
+ray.init(object_store_memory=2000 * 1024 * 1024, redis_max_memory=2000 * 1024 * 1024)
 
 def main(args):
     dtype = torch.double
@@ -36,6 +40,7 @@ def main(args):
     env.seed(args.seed)
     torch.manual_seed(args.seed)
     policy_net = Policy(num_inputs, num_actions)
+
     value_net = Value(num_inputs)
     batch_size = args.batch_size
     running_state = ZFilter((env.observation_space.shape[0],), clip=5)

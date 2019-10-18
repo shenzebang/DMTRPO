@@ -2,8 +2,6 @@ import torch
 from utils2.torch import to_device
 import numpy as np
 import multiprocessing as mp
-import math
-
 import ray
 
 @ray.remote
@@ -39,6 +37,7 @@ def estimate_advantages(memory, value_net, gamma, tau, device='cpu', dtype=torch
 
 
 def estimate_advantages_parallel(memories, value_net, gamma, tau, device='cpu', dtype=torch.float64, num_parallel_workers=mp.cpu_count()):
+    # ray.init()
     result_ids = []
     for memory, pid in zip(memories, range(len(memories))):
         result_ids.append(estimate_advantages.remote(memory,

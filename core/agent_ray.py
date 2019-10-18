@@ -1,11 +1,8 @@
 import multiprocessing
 from utils2.replay_memory import Memory
 from utils2.torch import *
-import math
 import ray
-ray.init()
 from running_state import ZFilter
-
 
 @ray.remote
 def collect_samples(pid, env, policy, custom_reward,
