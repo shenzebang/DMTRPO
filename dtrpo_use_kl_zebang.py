@@ -15,12 +15,12 @@ from utils import *
 from running_state import ZFilter
 # from core.common import estimate_advantages_parallel
 from core.common_ray import estimate_advantages_parallel
-from torch.nn.utils.convert_parameters import parameters_to_vector
+from torch.nn.utils.convert_parameters import parameters_to_vector, vector_to_parameters
 import numpy as np
 from torch.distributions.kl import kl_divergence
 # from core.natural_gradient import conjugate_gradient_parallel
 from core.natural_gradient_ray import conjugate_gradient_parallel
-
+from core.policy_gradient import compute_policy_gradient_parallel
 # from envs.mujoco.half_cheetah import HalfCheetahVelEnv_FL
 import ray
 
@@ -38,7 +38,7 @@ def main(args):
     num_actions = env.action_space.shape[0]
     env.seed(args.seed)
     torch.manual_seed(args.seed)
-    policy_net = Policy(num_inputs, num_actions)
+    policy_net = Policy(num_inputs, num_actions, hidden_sizes = (args.hidden_size,) * args.num_layers)
 
     value_net = Value(num_inputs)
     batch_size = args.batch_size
@@ -47,43 +47,9 @@ def main(args):
     logdir = "./DTRPO/%s/batchsize_%d_nworkers_%d_%d"%(str(args.env_name), batch_size, args.agent_count, args.seed)
     writer = SummaryWriter(logdir)
 
-
-    # TODO: update caller of 'sample'
     agents = AgentCollection(env, policy_net, args.device, running_state=running_state, render=args.render,
                              num_agents=args.agent_count, num_parallel_workers=args.num_workers)
 
-    def compute_PG(states, actions, returns, advantages):
-        """compute policy gradient and update value net by using samples in memory"""
-
-        # Original code uses the same LBFGS to optimize the value loss
-        targets = returns
-        def get_value_loss(flat_params):
-            set_flat_params_to(value_net, torch.Tensor(flat_params))
-            for param in value_net.parameters():
-                if param.grad is not None:
-                    param.grad.data.fill_(0)
-
-            values_ = value_net(Variable(states))
-
-            value_loss = (values_ - targets).pow(2).mean()
-
-            # weight decay
-            for param in value_net.parameters():
-                value_loss += param.pow(2).sum() * 1e-3
-            value_loss.backward()
-            return (value_loss.data.double().numpy(), get_flat_grad_from(value_net).data.double().numpy())
-
-        flat_params, _, opt_info = scipy.optimize.fmin_l_bfgs_b(get_value_loss,
-                                                                get_flat_params_from(value_net).double().numpy(),
-                                                                maxiter=25)
-        set_flat_params_to(value_net, torch.Tensor(flat_params))
-
-        log_probs = policy_net.get_log_prob(states, actions)
-        loss = -(advantages * torch.exp(log_probs - log_probs.detach())).mean()
-        grads = torch.autograd.grad(loss, policy_net.parameters())
-        loss_grad = parameters_to_vector(grads)
-
-        return loss_grad
 
 
 
@@ -110,7 +76,6 @@ def main(args):
         return kl
 
     for i_episode in count(1):
-        policy_gradients = [] # list of PGs
         losses = []
 
         print('Episode {}. Sampling trajectories...'.format(i_episode))
@@ -126,10 +91,14 @@ def main(args):
         print('Episode {}. Processing trajectories is done, using time {}'.format(i_episode, time_process))
         print('Episode {}. Computing policy gradients...'.format(i_episode))
         time_begin = time()
-        for advantages, returns, states, actions in zip(advantages_list, returns_list, states_list, actions_list):
-            policy_gradients.append(compute_PG(states, actions, returns, advantages).numpy())
+        policy_gradients, value_net_update_params = compute_policy_gradient_parallel(policy_net, value_net, states_list, actions_list, returns_list, advantages_list)
         pg = np.array(policy_gradients).mean(axis=0)
         pg = torch.from_numpy(pg)
+
+        value_net_average_params = np.array(value_net_update_params).mean(axis=0)
+        value_net_average_params = torch.from_numpy(value_net_average_params)
+        vector_to_parameters(value_net_average_params, value_net.parameters())
+
         time_pg = time() - time_begin
         print('Episode {}. Computing policy gradients is done, using time {}.'.format(i_episode, time_pg))
         print('Episode {}. Computing the harmonic mean of natural gradient directions...'.format(i_episode))
@@ -201,7 +170,12 @@ if __name__ == '__main__':
                         help='name of the environment to run')
     parser.add_argument('--tau', type=float, default=0.97, metavar='G',
                         help='gae (default: 0.97)')
-    # Policy
+
+    # Policy network (relu activation function)
+    parser.add_argument('--hidden-size', type=int, default=64,
+                        help='number of hidden units per layer')
+    parser.add_argument('--num-layers', type=int, default=2,
+                        help='number of hidden layers')
 
     # Optimization
     parser.add_argument('--max-kl', type=float, default=1e-1, metavar='G',
