@@ -84,7 +84,7 @@ def _fvsp(policy_net, states, damping=1e-2):
     return __fvsp
 
 
-def estimate_largest_eigenvalue(mvp, matrix_dim, power_iteration_count=40):
+def estimate_largest_eigenvalue(mvp, matrix_dim, power_iteration_count=100):
     x = np.random.randn(matrix_dim)
     x = x / np.linalg.norm(x)
     # print(np.linalg.norm(x))
@@ -102,7 +102,7 @@ def estimate_largest_eigenvalue(mvp, matrix_dim, power_iteration_count=40):
     return np.dot(x, mvp(x))
 
 
-def compute_log_determinant_parallel(policy_net, states_list, matrix_dim, damping=1e-2, num_trace=20, cheby_degree = 40, eigen_amp = 1):
+def compute_log_determinant_parallel(policy_net, states_list, matrix_dim, damping=1e-2, num_trace=40, cheby_degree = 100, eigen_amp = 1):
     num_workers = len(states_list)
     result_ids = []
     log_determinant = [None]*num_workers
@@ -115,11 +115,11 @@ def compute_log_determinant_parallel(policy_net, states_list, matrix_dim, dampin
         # print("computing log determinant")
         result_id = compute_log_determinant.remote(pid, fvsp, num_trace, cheby_degree, l_min, l_max, matrix_dim)
         result_ids.append(result_id)
-        result_id = compute_log_determinant.remote(2, fvsp, num_trace, cheby_degree*2, l_min, l_max, matrix_dim)
+        result_id = compute_log_determinant.remote(pid, fvsp, num_trace, cheby_degree*2, l_min, l_max, matrix_dim)
         result_ids.append(result_id)
-        result_id = compute_log_determinant.remote(3, fvsp, num_trace, cheby_degree*4, l_min, l_max, matrix_dim)
+        result_id = compute_log_determinant.remote(pid, fvsp, num_trace, cheby_degree*4, l_min, l_max, matrix_dim)
         result_ids.append(result_id)
-        result_id = compute_log_determinant.remote(4, fvsp, num_trace, cheby_degree*8, l_min, l_max, matrix_dim)
+        result_id = compute_log_determinant.remote(pid, fvsp, num_trace, cheby_degree*8, l_min, l_max, matrix_dim)
         result_ids.append(result_id)
 
     for result_id in result_ids:
