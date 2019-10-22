@@ -21,6 +21,7 @@ from torch.distributions.kl import kl_divergence
 # from core.natural_gradient import conjugate_gradient_parallel
 from core.natural_gradient_ray import conjugate_gradient_parallel
 from core.policy_gradient import compute_policy_gradient_parallel
+from core.log_determinant import compute_log_determinant_parallel
 # from envs.mujoco.half_cheetah import HalfCheetahVelEnv_FL
 import ray
 
@@ -39,7 +40,11 @@ def main(args):
     env.seed(args.seed)
     torch.manual_seed(args.seed)
     policy_net = Policy(num_inputs, num_actions, hidden_sizes = (args.hidden_size,) * args.num_layers)
-
+    for name, param in policy_net.named_parameters():
+        print("name: {}, size {}".format(name, param.size()[0]))
+    flat_param = parameters_to_vector(policy_net.parameters())
+    matrix_dim = flat_param.size()[0]
+    print("total size {}".format(matrix_dim))
     value_net = Value(num_inputs)
     batch_size = args.batch_size
     running_state = ZFilter((env.observation_space.shape[0],), clip=5)
@@ -105,6 +110,9 @@ def main(args):
         time_begin = time()
         stepdirs = conjugate_gradient_parallel(policy_net, states_list, pg,
                                                args.max_kl, args.cg_damping, args.cg_iter)
+        log_determinants = compute_log_determinant_parallel(policy_net, states_list, matrix_dim, damping=args.cg_damping)
+        for log_determinant in log_determinants:
+            print(log_determinant)
         fullstep = np.array(stepdirs).mean(axis=0)
         fullstep = torch.from_numpy(fullstep)
         time_ng = time() - time_begin
