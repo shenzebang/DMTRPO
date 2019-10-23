@@ -110,8 +110,9 @@ def main(args):
         time_begin = time()
         log_determinants = compute_log_determinant(policy_net, states_list, matrix_dim, damping=args.cg_damping,
                                                    device=args.device)
+        log_determinants_mean = np.array(log_determinants).mean()
         for log_determinant, agent_id in zip(log_determinants, range(args.agent_count)):
-            print("\t normalized log det for agent {} is {}".format(agent_id, log_determinant-np.log(args.cg_damping)*matrix_dim))
+            print("\t normalized log det for agent {} is {}".format(agent_id, log_determinant - log_determinants_mean))
         time_log_det = time() - time_begin
         print('Episode {}. Computing the log determinants of Fisher matrices is done, using time {}'
               .format(i_episode, time_log_det))

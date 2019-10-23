@@ -105,7 +105,7 @@ def compute_log_determinant(policy_net, states_list, matrix_dim, damping=1e-2, n
     result_ids = []
     log_determinant = []
     policy_net = policy_net.to(device)
-    for states in states_list:
+    for states, index in zip(states_list, range(num_workers)):
         states = states.to(device)
         fvsp = _fvsp(policy_net, states, damping=damping, device=device)
         l_min = damping
@@ -115,6 +115,7 @@ def compute_log_determinant(policy_net, states_list, matrix_dim, damping=1e-2, n
         # print("computing log determinant")
         log_det = _compute_log_determinant(fvsp, num_trace, cheby_degree, l_min, l_max, matrix_dim)
         log_determinant.append(log_det)
+        print("\t Finishing {}/{} log dets.".format(index+1, num_workers))
 
     policy_net = policy_net.to('cpu')
 
