@@ -21,9 +21,10 @@ from torch.distributions.kl import kl_divergence
 # from core.natural_gradient import conjugate_gradient_parallel
 from core.natural_gradient_ray import conjugate_gradient_parallel
 from core.policy_gradient import compute_policy_gradient_parallel
-from core.log_determinant import compute_log_determinant_parallel
+from core.log_determinant import compute_log_determinant
 # from envs.mujoco.half_cheetah import HalfCheetahVelEnv_FL
 import ray
+import os
 
 torch.utils.backcompat.broadcast_warning.enabled = True
 torch.utils.backcompat.keepdim_warning.enabled = True
@@ -31,7 +32,7 @@ torch.set_default_tensor_type('torch.DoubleTensor')
 
 
 def main(args):
-    ray.init(num_cpus=args.num_workers)
+    ray.init(num_cpus=args.num_workers, num_gpus=1)
     dtype = torch.double
     torch.set_default_dtype(dtype)
     env = gym.make(args.env_name)
@@ -40,11 +41,12 @@ def main(args):
     env.seed(args.seed)
     torch.manual_seed(args.seed)
     policy_net = Policy(num_inputs, num_actions, hidden_sizes = (args.hidden_size,) * args.num_layers)
+    print("Network structure:")
     for name, param in policy_net.named_parameters():
-        print("name: {}, size {}".format(name, param.size()[0]))
+        print("name: {}, size: {}".format(name, param.size()[0]))
     flat_param = parameters_to_vector(policy_net.parameters())
     matrix_dim = flat_param.size()[0]
-    print("total size {}".format(matrix_dim))
+    print("number of total parameters: {}".format(matrix_dim))
     value_net = Value(num_inputs)
     batch_size = args.batch_size
     running_state = ZFilter((env.observation_space.shape[0],), clip=5)
@@ -52,11 +54,8 @@ def main(args):
     logdir = "./DTRPO/%s/batchsize_%d_nworkers_%d_%d"%(str(args.env_name), batch_size, args.agent_count, args.seed)
     writer = SummaryWriter(logdir)
 
-    agents = AgentCollection(env, policy_net, args.device, running_state=running_state, render=args.render,
+    agents = AgentCollection(env, policy_net, 'cpu', running_state=running_state, render=args.render,
                              num_agents=args.agent_count, num_parallel_workers=args.num_workers)
-
-
-
 
     def trpo_loss(advantages, states, actions, params, params_trpo_ls):
         # This is the negative trpo objective
@@ -106,18 +105,29 @@ def main(args):
 
         time_pg = time() - time_begin
         print('Episode {}. Computing policy gradients is done, using time {}.'.format(i_episode, time_pg))
+
+        print('Episode {}. Computing the log determinants of Fisher matrices...'.format(i_episode))
+        time_begin = time()
+        log_determinants = compute_log_determinant(policy_net, states_list, matrix_dim, damping=args.cg_damping,
+                                                   device=args.device)
+        for log_determinant, agent_id in zip(log_determinants, range(args.agent_count)):
+            print("\t normalized log det for agent {} is {}".format(agent_id, log_determinant-np.log(args.cg_damping)*matrix_dim))
+        time_log_det = time() - time_begin
+        print('Episode {}. Computing the log determinants of Fisher matrices is done, using time {}'
+              .format(i_episode, time_log_det))
+
         print('Episode {}. Computing the harmonic mean of natural gradient directions...'.format(i_episode))
         time_begin = time()
         stepdirs = conjugate_gradient_parallel(policy_net, states_list, pg,
                                                args.max_kl, args.cg_damping, args.cg_iter)
-        log_determinants = compute_log_determinant_parallel(policy_net, states_list, matrix_dim, damping=args.cg_damping)
-        for log_determinant in log_determinants:
-            print(log_determinant)
         fullstep = np.array(stepdirs).mean(axis=0)
         fullstep = torch.from_numpy(fullstep)
         time_ng = time() - time_begin
         print('Episode {}. Computing the harmonic mean of natural gradient directions is done, using time {}'
               .format(i_episode, time_ng))
+        time_pg = time() - time_begin
+        print('Episode {}. Computing policy gradients is done, using time {}.'.format(i_episode, time_pg))
+
         print('Episode {}. Linear search...'.format(i_episode))
         time_begin = time()
         prev_params = get_flat_params_from(policy_net)
