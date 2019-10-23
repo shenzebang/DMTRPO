@@ -51,13 +51,15 @@ def main(args):
     batch_size = args.batch_size
     running_state = ZFilter((env.observation_space.shape[0],), clip=5)
 
-    logdir = "./DTRPO/%s/batchsize_%d_nworkers_%d_%d"%(str(args.env_name), batch_size, args.agent_count, args.seed)
+    algo = "hmtrpo"
+    logdir = "./algo_{}/env_{}/batchsize_{}_nworkers_{}_seed_{}_time{}".format(algo, str(args.env_name), batch_size, args.agent_count, args.seed, time())
     writer = SummaryWriter(logdir)
 
     agents = AgentCollection(env, policy_net, 'cpu', running_state=running_state, render=args.render,
                              num_agents=args.agent_count, num_parallel_workers=args.num_workers)
 
     def trpo_loss(advantages, states, actions, params, params_trpo_ls):
+        # This is the negative trpo objective
         with torch.no_grad():
             set_flat_params_to(policy_net, params)
             log_prob_prev = policy_net.get_log_prob(states, actions)
@@ -80,31 +82,34 @@ def main(args):
 
     for i_episode in count(1):
         losses = []
-
+        # Sample Trajectories
         print('Episode {}. Sampling trajectories...'.format(i_episode))
         time_begin = time()
         memories, logs = agents.collect_samples(batch_size)
         time_sample = time() - time_begin
         print('Episode {}. Sampling trajectories is done, using time {}.'.format(i_episode, time_sample))
+
+        # Process Trajectories
         print('Episode {}. Processing trajectories...'.format(i_episode))
         time_begin = time()
         advantages_list, returns_list, states_list, actions_list = \
             estimate_advantages_parallel(memories, value_net, args.gamma, args.tau)
         time_process = time() - time_begin
         print('Episode {}. Processing trajectories is done, using time {}'.format(i_episode, time_process))
+
+        # Computing Policy Gradient
         print('Episode {}. Computing policy gradients...'.format(i_episode))
         time_begin = time()
         policy_gradients, value_net_update_params = compute_policy_gradient_parallel(policy_net, value_net, states_list, actions_list, returns_list, advantages_list)
         pg = np.array(policy_gradients).mean(axis=0)
         pg = torch.from_numpy(pg)
-
         value_net_average_params = np.array(value_net_update_params).mean(axis=0)
         value_net_average_params = torch.from_numpy(value_net_average_params)
         vector_to_parameters(value_net_average_params, value_net.parameters())
-
         time_pg = time() - time_begin
         print('Episode {}. Computing policy gradients is done, using time {}.'.format(i_episode, time_pg))
 
+        # Computing Conjugate Gradient
         print('Episode {}. Computing the harmonic mean of natural gradient directions...'.format(i_episode))
         time_begin = time()
         stepdirs = conjugate_gradient_parallel(policy_net, states_list, pg,
@@ -114,9 +119,8 @@ def main(args):
         time_ng = time() - time_begin
         print('Episode {}. Computing the harmonic mean of natural gradient directions is done, using time {}'
               .format(i_episode, time_ng))
-        time_pg = time() - time_begin
-        print('Episode {}. Computing policy gradients is done, using time {}.'.format(i_episode, time_pg))
 
+        # Linear Search
         print('Episode {}. Linear search...'.format(i_episode))
         time_begin = time()
         prev_params = get_flat_params_from(policy_net)
@@ -155,7 +159,7 @@ def main(args):
             print('Episode {}. Average reward {:.2f}'.format(
                 i_episode, average_reward))
             writer.add_scalar("Avg_return", average_reward, i_episode*args.agent_count*batch_size)
-        if i_episode * args.agent_count * batch_size > 2e6:
+        if i_episode * args.agent_count * batch_size > 2e7:
             break
 
 

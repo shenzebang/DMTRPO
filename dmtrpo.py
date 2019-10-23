@@ -51,7 +51,8 @@ def main(args):
     batch_size = args.batch_size
     running_state = ZFilter((env.observation_space.shape[0],), clip=5)
 
-    logdir = "./DTRPO/%s/batchsize_%d_nworkers_%d_%d"%(str(args.env_name), batch_size, args.agent_count, args.seed)
+    algo = "dmtrpo"
+    logdir = "./algo_{}/env_{}/batchsize_{}_nworkers_{}_seed_{}_time{}".format(algo, str(args.env_name), batch_size, args.agent_count, args.seed, time())
     writer = SummaryWriter(logdir)
 
     agents = AgentCollection(env, policy_net, 'cpu', running_state=running_state, render=args.render,
@@ -113,9 +114,12 @@ def main(args):
         time_begin = time()
         log_determinants = compute_log_determinant(policy_net, states_list, matrix_dim, damping=args.cg_damping,
                                                    device=args.device)
+        # log_determinants = np.ones(args.agent_count)
         log_determinants_mean = np.array(log_determinants).mean()
-        for log_determinant, agent_id in zip(log_determinants, range(args.agent_count)):
-            print("\t normalized log det for agent {} is {}".format(agent_id, log_determinant - log_determinants_mean))
+        # for log_determinant, agent_id in zip(log_determinants, range(args.agent_count)):
+        #     print("\t normalized log det for agent {} is {}".format(agent_id, log_determinant - log_determinants_mean))
+        normalized_log_determinants = np.array(log_determinants) - log_determinants_mean
+        normalized_determinants = np.exp(normalized_log_determinants/5)
         time_log_det = time() - time_begin
         print('Episode {}. Computing the log determinants of Fisher matrices is done, using time {}'
               .format(i_episode, time_log_det))
@@ -125,7 +129,7 @@ def main(args):
         time_begin = time()
         stepdirs = conjugate_gradient_parallel(policy_net, states_list, pg,
                                                args.max_kl, args.cg_damping, args.cg_iter)
-        fullstep = np.array(stepdirs).mean(axis=0)
+        fullstep = np.average(stepdirs, axis=0, weights=normalized_determinants)
         fullstep = torch.from_numpy(fullstep)
         time_ng = time() - time_begin
         print('Episode {}. Computing the harmonic mean of natural gradient directions is done, using time {}'
