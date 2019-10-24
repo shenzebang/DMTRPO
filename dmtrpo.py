@@ -35,10 +35,10 @@ def main(args):
     ray.init(num_cpus=args.num_workers, num_gpus=1)
     dtype = torch.double
     torch.set_default_dtype(dtype)
-    env = gym.make(args.env_name)
+    dummy_env = gym.make(args.env_name)
     num_inputs = env.observation_space.shape[0]
     num_actions = env.action_space.shape[0]
-    env.seed(args.seed)
+    dummy_env.seed(args.seed)
     torch.manual_seed(args.seed)
     policy_net = Policy(num_inputs, num_actions, hidden_sizes = (args.hidden_size,) * args.num_layers)
     print("Network structure:")
@@ -49,13 +49,13 @@ def main(args):
     print("number of total parameters: {}".format(matrix_dim))
     value_net = Value(num_inputs)
     batch_size = args.batch_size
-    running_state = ZFilter((env.observation_space.shape[0],), clip=5)
+    running_state = ZFilter((dummy_env.observation_space.shape[0],), clip=5)
 
     algo = "dmtrpo"
     logdir = "./algo_{}/env_{}/batchsize_{}_nworkers_{}_seed_{}_time{}".format(algo, str(args.env_name), batch_size, args.agent_count, args.seed, time())
     writer = SummaryWriter(logdir)
 
-    agents = AgentCollection(env, policy_net, 'cpu', running_state=running_state, render=args.render,
+    agents = AgentCollection(args.env_name, policy_net, 'cpu', running_state=running_state, render=args.render,
                              num_agents=args.agent_count, num_parallel_workers=args.num_workers)
 
     def trpo_loss(advantages, states, actions, params, params_trpo_ls):

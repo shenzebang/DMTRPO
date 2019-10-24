@@ -15,88 +15,26 @@ register(
 )
 
 register(
-    'HopperBias-v0',
+    'Hopper_FLBias-v0',
     entry_point='envs.utils:mujoco_wrapper',
     kwargs={'entry_point': 'envs.mujoco.hopper:HopperEnv_Bias'},
     max_episode_steps=1000
 )
 
 register(
-    'HopperBias10-v0',
-    entry_point='envs.utils:mujoco_wrapper',
-    kwargs={'entry_point': 'envs.mujoco.hopper:HopperEnv_10Bias'},
-    max_episode_steps=1000
-)
-
-register(
-    'HopperBias20-v0',
-    entry_point='envs.utils:mujoco_wrapper',
-    kwargs={'entry_point': 'envs.mujoco.hopper:HopperEnv_20Bias'},
-    max_episode_steps=1000
-)
-
-register(
-    'HopperBias50-v0',
-    entry_point='envs.utils:mujoco_wrapper',
-    kwargs={'entry_point': 'envs.mujoco.hopper:HopperEnv_50Bias'},
-    max_episode_steps=1000
-)
-
-register(
-    'Walker2dBias-v0',
+    'Walker2d_FLBias-v0',
     entry_point='envs.utils:mujoco_wrapper',
     kwargs={'entry_point': 'envs.mujoco.walker2d:Walker2dEnv_Bias'},
     max_episode_steps=1000
 )
 
 register(
-    'Walker2dBias10-v0',
-    entry_point='envs.utils:mujoco_wrapper',
-    kwargs={'entry_point': 'envs.mujoco.walker2d:Walker2dEnv_10Bias'},
-    max_episode_steps=1000
-)
-
-register(
-    'Walker2dBias20-v0',
-    entry_point='envs.utils:mujoco_wrapper',
-    kwargs={'entry_point': 'envs.mujoco.walker2d:Walker2dEnv_20Bias'},
-    max_episode_steps=1000
-)
-
-register(
-    'Walker2dBias50-v0',
-    entry_point='envs.utils:mujoco_wrapper',
-    kwargs={'entry_point': 'envs.mujoco.walker2d:Walker2dEnv_50Bias'},
-    max_episode_steps=1000
-)
-
-register(
-    'HumanoidBias-v0',
+    'Humanoid_FLBias-v0',
     entry_point='envs.utils:mujoco_wrapper',
     kwargs={'entry_point': 'envs.mujoco.humanoid:HumanoidEnv_Bias'},
     max_episode_steps=1000
 )
 
-register(
-    'HumanoidBias10-v0',
-    entry_point='envs.utils:mujoco_wrapper',
-    kwargs={'entry_point': 'envs.mujoco.humanoid:HumanoidEnv_10Bias'},
-    max_episode_steps=1000
-)
-
-register(
-    'HumanoidBias20-v0',
-    entry_point='envs.utils:mujoco_wrapper',
-    kwargs={'entry_point': 'envs.mujoco.humanoid:HumanoidEnv_20Bias'},
-    max_episode_steps=1000
-)
-
-register(
-    'HumanoidBias50-v0',
-    entry_point='envs.utils:mujoco_wrapper',
-    kwargs={'entry_point': 'envs.mujoco.humanoid:HumanoidEnv_50Bias'},
-    max_episode_steps=1000
-)
 
 # 2D Navigation
 # ----------------------------------------

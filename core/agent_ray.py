@@ -3,6 +3,7 @@ from utils2.replay_memory import Memory
 from utils2.torch import *
 import ray
 from running_state import ZFilter
+import gym
 
 @ray.remote
 def collect_samples(pid, env, policy, custom_reward,
@@ -99,7 +100,7 @@ class AgentCollection:
 
     def __init__(self, env, policy, device, custom_reward=None,
                  mean_action=False, render=False, running_state=None, num_agents=1, num_parallel_workers=1):
-        self.env = env
+        self.envs = [gym.make(env) for _ in range(num_agents)]
         self.policy = policy
         self.device = device
         self.custom_reward = custom_reward
@@ -113,7 +114,7 @@ class AgentCollection:
         to_device(torch.device('cpu'), self.policy)
         result_ids = []
         for i in range(self.num_agents):
-            result_ids.append(collect_samples.remote(i, self.env, self.policy, self.custom_reward, self.mean_action,
+            result_ids.append(collect_samples.remote(i, self.envs[i], self.policy, self.custom_reward, self.mean_action,
                            False, self.running_state, min_batch_size))
 
 
