@@ -1,37 +1,16 @@
 from gym.envs.registration import register
 
 register(
-    'HalfCheetahFL-v0',
+    'HalfCheetah_FLVel-v0',
     entry_point='envs.utils:mujoco_wrapper',
-    kwargs={'entry_point': 'envs.mujoco.half_cheetah:HalfCheetahEnv_FL'},
+    kwargs={'entry_point': 'envs.mujoco.half_cheetah:HalfCheetahVelEnv_FL'},
     max_episode_steps=1000
 )
 
 register(
-    'HalfCheetahBias-v0',
+    'HalfCheetah_FLBias-v0',
     entry_point='envs.utils:mujoco_wrapper',
     kwargs={'entry_point': 'envs.mujoco.half_cheetah:HalfCheetahEnv_Bias'},
-    max_episode_steps=1000
-)
-
-register(
-    'HalfCheetahBias10-v0',
-    entry_point='envs.utils:mujoco_wrapper',
-    kwargs={'entry_point': 'envs.mujoco.half_cheetah:HalfCheetahEnv_10Bias'},
-    max_episode_steps=1000
-)
-
-register(
-    'HalfCheetahBias20-v0',
-    entry_point='envs.utils:mujoco_wrapper',
-    kwargs={'entry_point': 'envs.mujoco.half_cheetah:HalfCheetahEnv_20Bias'},
-    max_episode_steps=1000
-)
-
-register(
-    'HalfCheetahBias50-v0',
-    entry_point='envs.utils:mujoco_wrapper',
-    kwargs={'entry_point': 'envs.mujoco.half_cheetah:HalfCheetahEnv_50Bias'},
     max_episode_steps=1000
 )
 
