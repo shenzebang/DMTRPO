@@ -39,6 +39,7 @@ def main(args):
     num_inputs = env.observation_space.shape[0]
     num_actions = env.action_space.shape[0]
     env.seed(args.seed)
+    np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     policy_net = Policy(num_inputs, num_actions, hidden_sizes = (args.hidden_size,) * args.num_layers)
     print("Network structure:")
