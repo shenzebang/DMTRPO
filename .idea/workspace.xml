@@ -103,8 +103,8 @@
     </option>
   </component>
   <component name="ProjectFrameBounds">
-    <option name="x" value="120" />
-    <option name="y" value="128" />
+    <option name="x" value="271" />
+    <option name="y" value="125" />
     <option name="width" value="2289" />
     <option name="height" value="1259" />
   </component>
@@ -262,9 +262,9 @@
       <method v="2" />
     </configuration>
     <list>
-      <item itemvalue="Python.main" />
       <item itemvalue="Python.dtrpo" />
       <item itemvalue="Python.dtrpo_correct" />
+      <item itemvalue="Python.main" />
       <item itemvalue="Python.trpo_kl" />
       <item itemvalue="Python.trpo_use_kl" />
     </list>
