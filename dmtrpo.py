@@ -21,7 +21,7 @@ from torch.distributions.kl import kl_divergence
 # from core.natural_gradient import conjugate_gradient_parallel
 from core.natural_gradient_ray import conjugate_gradient_parallel
 from core.policy_gradient import compute_policy_gradient_parallel
-from core.log_determinant import compute_log_determinant
+from core.log_determinant_ray import compute_log_determinant
 # from envs.mujoco.half_cheetah import HalfCheetahVelEnv_FL
 import ray
 import os
@@ -30,6 +30,7 @@ torch.utils.backcompat.broadcast_warning.enabled = True
 torch.utils.backcompat.keepdim_warning.enabled = True
 torch.set_default_tensor_type('torch.DoubleTensor')
 
+os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 
 def main(args):
     ray.init(num_cpus=args.num_workers, num_gpus=1)

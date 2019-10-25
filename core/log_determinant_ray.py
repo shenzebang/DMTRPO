@@ -3,11 +3,18 @@ import ray
 import torch
 from torch.distributions.kl import kl_divergence
 from models import detach_distribution
+import os
 from torch.nn.utils.convert_parameters import parameters_to_vector, vector_to_parameters
 
 
-@ray.remote
-def compute_log_determinant(pid, mvp, num_trace, cheby_degree, l_min, l_max, matrix_dim):
+@ray.remote(num_gpus=.25)
+def _compute_log_determinant(pid, policy_net, states, num_trace, cheby_degree, l_min, eigen_amp, matrix_dim, device='cpu', damping=1e-2):
+    # print("ray.get_gpu_ids(): {}".format(ray.get_gpu_ids()))
+    # print("CUDA_VISIBLE_DEVICES: {}".format(os.environ["CUDA_VISIBLE_DEVICES"]))
+    # print(torch.cuda.is_available())
+    # torch.tensor(1).to('cuda: 0')
+    mvp = _fvsp(policy_net, states, damping=damping, device=device)
+    l_max = estimate_largest_eigenvalue(mvp, matrix_dim) * eigen_amp
     a = l_min+l_max
     delta = l_min / a
     mvp_scale = lambda x: mvp(x)/a
@@ -57,29 +64,27 @@ def chebyshev_poly_weights(f, cheby_degree):
     return c
 
 
-def _fvsp(policy_net, states, damping=1e-2):
+def _fvsp(policy_net, states, damping=1e-2, device='cpu'):
+    pi = policy_net(states)
+    pi_detach = detach_distribution(pi)
+    kl = torch.mean(kl_divergence(pi_detach, pi))
+    grads = torch.autograd.grad(kl, policy_net.parameters(), create_graph=True, retain_graph=True)
+    flat_grad_kl = torch.cat([grad.view(-1) for grad in grads])
     def __fvsp(vectors, damping=damping):
+        vectors = torch.from_numpy(vectors).to(device)
         results = []
         vector_list = []
         if len(vectors.shape) > 1:
             for j in range(vectors.shape[1]):
-                vector_list.append(np.squeeze(vectors[:, j]))
+                vector_list.append(torch.squeeze(vectors[:, j]))
         else:
             vector_list.append(vectors)
         for vector in vector_list:
-            vector = torch.from_numpy(vector)
-            pi = policy_net(states)
-            pi_detach = detach_distribution(pi)
-            kl = torch.mean(kl_divergence(pi_detach, pi))
-
-            grads = torch.autograd.grad(kl, policy_net.parameters(), create_graph=True)
-            flat_grad_kl = torch.cat([grad.view(-1) for grad in grads])
-
             kl_v = (flat_grad_kl * vector).sum()
-            grads = torch.autograd.grad(kl_v, policy_net.parameters())
+            grads = torch.autograd.grad(kl_v, policy_net.parameters(), retain_graph=True)
             flat_grad_grad_kl = torch.cat([grad.view(-1) for grad in grads])
-            results.append((flat_grad_grad_kl + vector * damping).numpy())
-        return np.squeeze(np.stack(results, axis=1))
+            results.append((flat_grad_grad_kl + vector * damping))
+        return np.squeeze(torch.stack(results, dim=1).cpu().numpy())
 
     return __fvsp
 
@@ -102,29 +107,29 @@ def estimate_largest_eigenvalue(mvp, matrix_dim, power_iteration_count=100):
     return np.dot(x, mvp(x))
 
 
-def compute_log_determinant_parallel(policy_net, states_list, matrix_dim, damping=1e-2, num_trace=40, cheby_degree = 100, eigen_amp = 1):
+def compute_log_determinant(policy_net, states_list, matrix_dim, damping=1e-2, num_trace=40, cheby_degree = 100, eigen_amp = 1, device='cpu'):
     num_workers = len(states_list)
     result_ids = []
     log_determinant = [None]*num_workers
+    # print(torch.cuda.current_device())
+    policy_net = policy_net.to(device)
     for states, pid in zip(states_list, range(num_workers)):
-        fvsp = _fvsp(policy_net, states, damping=damping)
+        states = states.to(device)
         l_min = damping
-        # print("estimating largest eigenvalue")
-        l_max = estimate_largest_eigenvalue(fvsp, matrix_dim)*eigen_amp
-        # print(l_max)
-        # print("computing log determinant")
-        result_id = compute_log_determinant.remote(pid, fvsp, num_trace, cheby_degree, l_min, l_max, matrix_dim)
+        result_id = _compute_log_determinant.remote(pid, policy_net, states, num_trace, cheby_degree, l_min, eigen_amp, matrix_dim, device, damping=damping)
         result_ids.append(result_id)
-        result_id = compute_log_determinant.remote(pid, fvsp, num_trace, cheby_degree*2, l_min, l_max, matrix_dim)
-        result_ids.append(result_id)
-        result_id = compute_log_determinant.remote(pid, fvsp, num_trace, cheby_degree*4, l_min, l_max, matrix_dim)
-        result_ids.append(result_id)
-        result_id = compute_log_determinant.remote(pid, fvsp, num_trace, cheby_degree*8, l_min, l_max, matrix_dim)
-        result_ids.append(result_id)
+        # result_id = compute_log_determinant.remote(pid, fvsp, num_trace, cheby_degree*2, l_min, l_max, matrix_dim)
+        # result_ids.append(result_id)
+        # result_id = compute_log_determinant.remote(pid, fvsp, num_trace, cheby_degree*4, l_min, l_max, matrix_dim)
+        # result_ids.append(result_id)
+        # result_id = compute_log_determinant.remote(pid, fvsp, num_trace, cheby_degree*8, l_min, l_max, matrix_dim)
+        # result_ids.append(result_id)
 
     for result_id in result_ids:
         pid, log_det = ray.get(result_id)
         print(log_det)
         log_determinant[pid] = log_det
+
+    policy_net = policy_net.to('cpu')
 
     return log_determinant

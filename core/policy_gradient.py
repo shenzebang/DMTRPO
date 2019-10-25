@@ -14,8 +14,10 @@ def get_flat_params_from(model):
     flat_params = torch.cat(params)
     return flat_params
 
-@ray.remote
+@ray.remote(num_gpus=1)
 def compute_PG(pid, policy_net, value_net, states, actions, returns, advantages):
+    torch.tensor(1).to('cuda')
+
     """compute policy gradient and update value net by using samples in memory"""
     for param in policy_net.parameters():
         param.requires_grad = True
