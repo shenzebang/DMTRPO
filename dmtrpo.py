@@ -30,10 +30,18 @@ torch.utils.backcompat.broadcast_warning.enabled = True
 torch.utils.backcompat.keepdim_warning.enabled = True
 torch.set_default_tensor_type('torch.DoubleTensor')
 
-os.environ["CUDA_VISIBLE_DEVICES"] = '0'
+# os.environ["CUDA_VISIBLE_DEVICES"] = '0'
+
+
 
 def main(args):
     ray.init(num_cpus=args.num_workers, num_gpus=args.num_gpus)
+    @ray.remote(num_gpus=1)
+    def ray_init_gpu(device):
+        torch.tensor(1).to(device)
+    init_id = ray_init_gpu.remote(args.device)
+    ray.get(init_id)
+
     dtype = torch.double
     torch.set_default_dtype(dtype)
     env = gym.make(args.env_name)
