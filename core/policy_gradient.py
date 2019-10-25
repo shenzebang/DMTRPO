@@ -14,7 +14,7 @@ def get_flat_params_from(model):
     flat_params = torch.cat(params)
     return flat_params
 
-@ray.remote(num_gpus=1)
+@ray.remote
 def compute_PG(pid, policy_net, value_net, states, actions, returns, advantages):
 
     """compute policy gradient and update value net by using samples in memory"""
