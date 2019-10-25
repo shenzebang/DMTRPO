@@ -56,28 +56,26 @@ def chebyshev_poly_weights(f, cheby_degree):
 
 
 def _fvsp(policy_net, states, damping=1e-2, device='cpu'):
+    pi = policy_net(states)
+    pi_detach = detach_distribution(pi)
+    kl = torch.mean(kl_divergence(pi_detach, pi))
+    grads = torch.autograd.grad(kl, policy_net.parameters(), create_graph=True, retain_graph=True)
+    flat_grad_kl = torch.cat([grad.view(-1) for grad in grads])
     def __fvsp(vectors, damping=damping):
+        vectors = torch.from_numpy(vectors).to(device)
         results = []
         vector_list = []
         if len(vectors.shape) > 1:
             for j in range(vectors.shape[1]):
-                vector_list.append(np.squeeze(vectors[:, j]))
+                vector_list.append(torch.squeeze(vectors[:, j]))
         else:
             vector_list.append(vectors)
         for vector in vector_list:
-            vector = torch.from_numpy(vector).to(device)
-            pi = policy_net(states)
-            pi_detach = detach_distribution(pi)
-            kl = torch.mean(kl_divergence(pi_detach, pi))
-
-            grads = torch.autograd.grad(kl, policy_net.parameters(), create_graph=True)
-            flat_grad_kl = torch.cat([grad.view(-1) for grad in grads])
-
             kl_v = (flat_grad_kl * vector).sum()
-            grads = torch.autograd.grad(kl_v, policy_net.parameters())
+            grads = torch.autograd.grad(kl_v, policy_net.parameters(), retain_graph=True)
             flat_grad_grad_kl = torch.cat([grad.view(-1) for grad in grads])
-            results.append((flat_grad_grad_kl + vector * damping).cpu().numpy())
-        return np.squeeze(np.stack(results, axis=1))
+            results.append((flat_grad_grad_kl + vector * damping))
+        return np.squeeze(torch.stack(results, dim=1).cpu().numpy())
 
     return __fvsp
 
