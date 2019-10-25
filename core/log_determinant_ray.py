@@ -127,7 +127,7 @@ def compute_log_determinant(policy_net, states_list, matrix_dim, damping=1e-2, n
 
     for result_id in result_ids:
         pid, log_det = ray.get(result_id)
-        print(log_det)
+        # print(log_det)
         log_determinant[pid] = log_det
 
     policy_net = policy_net.to('cpu')

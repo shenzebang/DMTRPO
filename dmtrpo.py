@@ -33,7 +33,7 @@ torch.set_default_tensor_type('torch.DoubleTensor')
 os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 
 def main(args):
-    ray.init(num_cpus=args.num_workers, num_gpus=1)
+    ray.init(num_cpus=args.num_workers, num_gpus=args.num_gpus)
     dtype = torch.double
     torch.set_default_dtype(dtype)
     env = gym.make(args.env_name)
@@ -226,10 +226,14 @@ if __name__ == '__main__':
                         help='set the device (cpu or cuda)')
     parser.add_argument('--num-workers', type=int, default=4,
                         help='number of workers for parallel computing')
+    parser.add_argument('--num-gpus', type=int, default=1,
+                        help='number of gpus for parallel computing log determinants')
 
     args = parser.parse_args()
 
     args.device = torch.device(args.device
                         if torch.cuda.is_available() else 'cpu')
+
+    args.gpus = args.gpus if args.device == 'cuda' and torch.cuda.is_available() else 0
 
     main(args)
