@@ -184,6 +184,6 @@ if __name__ == '__main__':
     args.batch_size = 1000
     args.max_kl = 0.01
     args.num_workers = 20
-    args.env_name = 'HalfCheetah-v2'
-    args.seed = 111
+    args.env_name = 'HalfCheetah_FLBias-v0'
+    args.seed = 1
     main(args)

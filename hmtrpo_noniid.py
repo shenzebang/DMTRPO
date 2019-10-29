@@ -51,7 +51,7 @@ def main(args):
     batch_size = args.batch_size
     running_state = ZFilter((num_inputs,), clip=5)
 
-    algo = "hmtrpo_noniid"
+    algo = "hmtrpo_FL"
     logdir = "./algo_{}/env_{}/batchsize_{}_nworkers_{}_seed_{}_time{}".format(algo, str(args.env_name), batch_size, args.agent_count, args.seed, time())
     writer = SummaryWriter(logdir)
 
@@ -85,7 +85,7 @@ def main(args):
         # Sample Trajectories
         print('Episode {}. Sampling trajectories...'.format(i_episode))
         time_begin = time()
-        memories, logs = agents.collect_samples(batch_size)
+        memories, logs = agents.collect_samples_noniid(batch_size)
         time_sample = time() - time_begin
         print('Episode {}. Sampling trajectories is done, using time {}.'.format(i_episode, time_sample))
 
@@ -168,7 +168,7 @@ if __name__ == '__main__':
     # import multiprocessing as mp
     # mp.set_start_method('spawn')
 
-    parser = argparse.ArgumentParser(description='Harmonic Mean TRPO with iid Environment')
+    parser = argparse.ArgumentParser(description='Harmonic Mean TRPO with non-iid Environment')
 
     # MDP
     parser.add_argument('--seed', type=int, default=1, metavar='N',
@@ -177,7 +177,7 @@ if __name__ == '__main__':
                         help='number of agents (default: 100)')
     parser.add_argument('--gamma', type=float, default=0.995, metavar='G',
                         help='discount factor (default: 0.995)')
-    parser.add_argument('--env-name', default="HalfCheetah_FLBias-v0", metavar='G',
+    parser.add_argument('--env-name', default="HalfCheetah-v2", metavar='G',
                         help='name of the environment to run')
     parser.add_argument('--tau', type=float, default=0.97, metavar='G',
                         help='gae (default: 0.97)')
@@ -207,17 +207,12 @@ if __name__ == '__main__':
                         help='interval between training status logs (default: 10)')
     parser.add_argument('--device', type=str, default='cpu',
                         help='set the device (cpu or cuda)')
-    parser.add_argument('--num-workers', type=int, default=4,
+    parser.add_argument('--num-workers', type=int, default=20,
                         help='number of workers for parallel computing')
 
     args = parser.parse_args()
 
     args.device = torch.device(args.device
                         if torch.cuda.is_available() else 'cpu')
-    args.agent_count = 100
-    args.batch_size = 1000
-    args.max_kl = 0.01
-    args.num_workers = 4
-    args.env_name = 'HalfCheetah_FLBias-v0'
-    args.seed = 1
+
     main(args)
