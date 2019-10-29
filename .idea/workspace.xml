@@ -2,11 +2,7 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="136dcb0c-b70f-4083-a756-b62ca200a273" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/local_trpo.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/local_trpo_noniid.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/core/natural_gradient_ray.py" beforeDir="false" afterPath="$PROJECT_DIR$/core/natural_gradient_ray.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/dmtrpo.py" beforeDir="false" afterPath="$PROJECT_DIR$/dmtrpo.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/hmtrpo.py" beforeDir="false" afterPath="$PROJECT_DIR$/hmtrpo.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/envs/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/envs/__init__.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/hmtrpo_noniid.py" beforeDir="false" afterPath="$PROJECT_DIR$/hmtrpo_noniid.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -20,8 +16,8 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/local_trpo.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="254">
-              <caret line="117" column="44" lean-forward="true" selection-start-line="113" selection-start-column="8" selection-end-line="117" selection-end-column="44" />
+            <state relative-caret-position="2093">
+              <caret line="117" column="44" selection-start-line="113" selection-start-column="8" selection-end-line="117" selection-end-column="44" />
               <folding>
                 <element signature="e#0#27#0" expanded="true" />
               </folding>
@@ -29,11 +25,11 @@
           </provider>
         </entry>
       </file>
-      <file pinned="false" current-in-tab="true">
+      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/local_trpo_noniid.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="-975">
-              <caret line="125" lean-forward="true" selection-start-line="125" selection-end-line="125" />
+            <state relative-caret-position="23">
+              <caret line="125" selection-start-line="125" selection-end-line="125" />
               <folding>
                 <element signature="e#0#27#0" expanded="true" />
               </folding>
@@ -44,7 +40,7 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/envs/mujoco/half_cheetah.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="634">
+            <state relative-caret-position="3404">
               <caret line="148" column="25" selection-start-line="148" selection-start-column="6" selection-end-line="148" selection-end-column="25" />
               <folding>
                 <element signature="e#0#18#0" expanded="true" />
@@ -53,11 +49,20 @@
           </provider>
         </entry>
       </file>
+      <file pinned="false" current-in-tab="true">
+        <entry file="file://$PROJECT_DIR$/envs/__init__.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="345">
+              <caret line="15" lean-forward="true" selection-start-line="15" selection-end-line="15" />
+            </state>
+          </provider>
+        </entry>
+      </file>
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/hmtrpo.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="287">
-              <caret line="25" column="9" lean-forward="true" selection-start-line="25" selection-start-column="9" selection-end-line="25" selection-end-column="9" />
+            <state relative-caret-position="575">
+              <caret line="25" column="9" selection-start-line="25" selection-start-column="9" selection-end-line="25" selection-end-column="9" />
               <folding>
                 <element signature="e#0#27#0" expanded="true" />
               </folding>
@@ -68,8 +73,8 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/hmtrpo_noniid.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="1762">
-              <caret line="221" column="17" selection-start-line="221" selection-start-column="17" selection-end-line="221" selection-end-column="17" />
+            <state relative-caret-position="474">
+              <caret line="219" column="24" selection-start-line="219" selection-start-column="24" selection-end-line="219" selection-end-column="24" />
               <folding>
                 <element signature="e#0#27#0" expanded="true" />
               </folding>
@@ -80,8 +85,8 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/core/agent_ray.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state>
-              <caret line="76" lean-forward="true" selection-start-line="76" selection-end-line="76" />
+            <state relative-caret-position="23">
+              <caret line="76" selection-start-line="76" selection-end-line="76" />
             </state>
           </provider>
         </entry>
@@ -105,9 +110,10 @@
         <option value="$PROJECT_DIR$/dmtrpo.py" />
         <option value="$PROJECT_DIR$/core/natural_gradient_ray.py" />
         <option value="$PROJECT_DIR$/hmtrpo.py" />
-        <option value="$PROJECT_DIR$/hmtrpo_noniid.py" />
         <option value="$PROJECT_DIR$/local_trpo.py" />
         <option value="$PROJECT_DIR$/local_trpo_noniid.py" />
+        <option value="$PROJECT_DIR$/hmtrpo_noniid.py" />
+        <option value="$PROJECT_DIR$/envs/__init__.py" />
       </list>
     </option>
   </component>
@@ -141,6 +147,11 @@
               <item name="DMTRPO" type="b2602c69:ProjectViewProjectNode" />
               <item name="DMTRPO" type="462c0819:PsiDirectoryNode" />
             </path>
+            <path>
+              <item name="DMTRPO" type="b2602c69:ProjectViewProjectNode" />
+              <item name="DMTRPO" type="462c0819:PsiDirectoryNode" />
+              <item name="envs" type="462c0819:PsiDirectoryNode" />
+            </path>
           </expand>
           <select />
         </subPane>
@@ -148,6 +159,7 @@
     </panes>
   </component>
   <component name="PropertiesComponent">
+    <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
     <property name="WebServerToolWindowFactoryState" value="true" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
     <property name="nodejs_interpreter_path.stuck_in_default_project" value="undefined stuck path" />
@@ -291,17 +303,18 @@
       <updated>1572148005641</updated>
       <workItem from="1572148007787" duration="27494000" />
       <workItem from="1572317101766" duration="5846000" />
+      <workItem from="1572339121794" duration="62000" />
     </task>
     <servers />
   </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="33340000" />
+    <option name="totallyTimeSpent" value="33402000" />
   </component>
   <component name="ToolWindowManager">
     <frame x="0" y="25" width="2560" height="1415" extended-state="6" />
     <editor active="true" />
     <layout>
-      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.25179" />
+      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.25377885" />
       <window_info id="Structure" order="1" side_tool="true" weight="0.25" />
       <window_info id="Favorites" order="2" side_tool="true" />
       <window_info anchor="bottom" id="Message" order="0" />
@@ -334,7 +347,7 @@
     <SUITE FILE_PATH="coverage/DMTRPO$hmtrpo_noniid.coverage" NAME="hmtrpo_noniid Coverage Results" MODIFIED="1572333971670" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/DMTRPO$dmtrpo.coverage" NAME="dmtrpo Coverage Results" MODIFIED="1572267359801" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/DMTRPO$hmtrpo.coverage" NAME="hmtrpo Coverage Results" MODIFIED="1572318384981" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/DMTRPO$hmtrpo__noniid.coverage" NAME="hmtrpo _noniid Coverage Results" MODIFIED="1572336465993" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/DMTRPO$hmtrpo__noniid.coverage" NAME="hmtrpo _noniid Coverage Results" MODIFIED="1572339186292" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
   <component name="debuggerHistoryManager">
     <expressions id="evaluateExpression">
@@ -438,23 +451,19 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/core/agent_ray.py">
+    <entry file="file://$PROJECT_DIR$/local_trpo.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state>
-          <caret line="76" lean-forward="true" selection-start-line="76" selection-end-line="76" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/envs/__init__.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="345">
-          <caret line="15" lean-forward="true" selection-start-line="15" selection-end-line="15" />
+        <state relative-caret-position="2093">
+          <caret line="117" column="44" selection-start-line="113" selection-start-column="8" selection-end-line="117" selection-end-column="44" />
+          <folding>
+            <element signature="e#0#27#0" expanded="true" />
+          </folding>
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/envs/mujoco/half_cheetah.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="634">
+        <state relative-caret-position="3404">
           <caret line="148" column="25" selection-start-line="148" selection-start-column="6" selection-end-line="148" selection-end-column="25" />
           <folding>
             <element signature="e#0#18#0" expanded="true" />
@@ -464,28 +473,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/hmtrpo.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="287">
-          <caret line="25" column="9" lean-forward="true" selection-start-line="25" selection-start-column="9" selection-end-line="25" selection-end-column="9" />
-          <folding>
-            <element signature="e#0#27#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/hmtrpo_noniid.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1762">
-          <caret line="221" column="17" selection-start-line="221" selection-start-column="17" selection-end-line="221" selection-end-column="17" />
-          <folding>
-            <element signature="e#0#27#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/local_trpo.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="254">
-          <caret line="117" column="44" lean-forward="true" selection-start-line="113" selection-start-column="8" selection-end-line="117" selection-end-column="44" />
+        <state relative-caret-position="575">
+          <caret line="25" column="9" selection-start-line="25" selection-start-column="9" selection-end-line="25" selection-end-column="9" />
           <folding>
             <element signature="e#0#27#0" expanded="true" />
           </folding>
@@ -494,11 +483,35 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/local_trpo_noniid.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-975">
-          <caret line="125" lean-forward="true" selection-start-line="125" selection-end-line="125" />
+        <state relative-caret-position="23">
+          <caret line="125" selection-start-line="125" selection-end-line="125" />
           <folding>
             <element signature="e#0#27#0" expanded="true" />
           </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/hmtrpo_noniid.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="474">
+          <caret line="219" column="24" selection-start-line="219" selection-start-column="24" selection-end-line="219" selection-end-column="24" />
+          <folding>
+            <element signature="e#0#27#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/core/agent_ray.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="23">
+          <caret line="76" selection-start-line="76" selection-end-line="76" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/envs/__init__.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="345">
+          <caret line="15" lean-forward="true" selection-start-line="15" selection-end-line="15" />
         </state>
       </provider>
     </entry>

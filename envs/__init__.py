@@ -7,17 +7,13 @@ register(
     max_episode_steps=1000
 )
 
-# register(
-#     'HalfCheetah_FLBias-v0',
-#     entry_point='envs.utils:mujoco_wrapper',
-#     kwargs={'entry_point': 'envs.mujoco.half_cheetah:HalfCheetahEnv_Bias'},
-#     max_episode_steps=1000
-# )
 register(
-    id = 'HalfCheetah_FLBias-v0',
-    entry_point = 'envs.mujoco.half_cheetah:HalfCheetahEnv_Bias',
-    max_episode_steps = 1000
+    'HalfCheetah_FLBias-v0',
+    entry_point='envs.utils:mujoco_wrapper',
+    kwargs={'entry_point': 'envs.mujoco.half_cheetah:HalfCheetahEnv_Bias'},
+    max_episode_steps=1000
 )
+
 
 register(
     'Hopper_FLBias-v0',

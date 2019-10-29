@@ -217,7 +217,7 @@ if __name__ == '__main__':
     args.agent_count = 100
     args.batch_size = 1000
     args.max_kl = 0.01
-    args.num_workers = 20
+    args.num_workers = 4
     args.env_name = 'HalfCheetah_FLBias-v0'
     args.seed = 1
     main(args)
