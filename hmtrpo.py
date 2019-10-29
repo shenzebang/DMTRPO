@@ -22,7 +22,6 @@ from torch.distributions.kl import kl_divergence
 from core.natural_gradient_ray import conjugate_gradient_parallel
 from core.policy_gradient import compute_policy_gradient_parallel
 from core.log_determinant import compute_log_determinant
-# from envs.mujoco.half_cheetah import HalfCheetahVelEnv_FL
 import ray
 import os
 
@@ -159,7 +158,7 @@ def main(args):
             print('Episode {}. Average reward {:.2f}'.format(
                 i_episode, average_reward))
             writer.add_scalar("Avg_return", average_reward, i_episode*args.agent_count*batch_size)
-        if i_episode * args.agent_count * batch_size > 2e7:
+        if i_episode * args.agent_count * batch_size > 1e7:
             break
 
 
@@ -177,7 +176,7 @@ if __name__ == '__main__':
                         help='number of agents (default: 100)')
     parser.add_argument('--gamma', type=float, default=0.995, metavar='G',
                         help='discount factor (default: 0.995)')
-    parser.add_argument('--env-name', default="Humanoid-v2", metavar='G',
+    parser.add_argument('--env-name', default="HalfCheetah-v2", metavar='G',
                         help='name of the environment to run')
     parser.add_argument('--tau', type=float, default=0.97, metavar='G',
                         help='gae (default: 0.97)')
@@ -214,5 +213,10 @@ if __name__ == '__main__':
 
     args.device = torch.device(args.device
                         if torch.cuda.is_available() else 'cpu')
-
+    args.agent_count = 100
+    args.batch_size = 1000
+    args.max_kl = 0.01
+    args.num_workers = 20
+    args.env_name = 'HalfCheetah-v2'
+    args.seed = 111
     main(args)

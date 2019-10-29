@@ -19,7 +19,7 @@ from torch.nn.utils.convert_parameters import parameters_to_vector, vector_to_pa
 import numpy as np
 from torch.distributions.kl import kl_divergence
 # from core.natural_gradient import conjugate_gradient_parallel
-from core.natural_gradient_ray import conjugate_gradient_parallel
+from core.natural_gradient_ray import local_conjugate_gradient_parallel_and_line_search
 from core.policy_gradient import compute_policy_gradient_parallel
 from core.log_determinant import compute_log_determinant
 import envs
@@ -51,7 +51,7 @@ def main(args):
     batch_size = args.batch_size
     running_state = ZFilter((num_inputs,), clip=5)
 
-    algo = "hmtrpo_noniid"
+    algo = "local_trpo_noniid"
     logdir = "./algo_{}/env_{}/batchsize_{}_nworkers_{}_seed_{}_time{}".format(algo, str(args.env_name), batch_size, args.agent_count, args.seed, time())
     writer = SummaryWriter(logdir)
 
@@ -111,46 +111,15 @@ def main(args):
 
         # Computing Conjugate Gradient
         print('Episode {}. Computing the harmonic mean of natural gradient directions...'.format(i_episode))
-        time_begin = time()
-        stepdirs = conjugate_gradient_parallel(policy_net, states_list, pg,
-                                               args.max_kl, args.cg_damping, args.cg_iter)
-        fullstep = np.array(stepdirs).mean(axis=0)
-        fullstep = torch.from_numpy(fullstep)
-        time_ng = time() - time_begin
-        print('Episode {}. Computing the harmonic mean of natural gradient directions is done, using time {}'
-              .format(i_episode, time_ng))
+        xnews = local_conjugate_gradient_parallel_and_line_search(trpo_loss, compute_kl, policy_net, states_list,
+                                                                  advantages_list, actions_list, policy_gradients,
+                                                                  args.max_kl, args.cg_damping, args.cg_iter)
 
-        # Linear Search
-        print('Episode {}. Linear search...'.format(i_episode))
-        time_begin = time()
+        xnew = torch.from_numpy(np.array(xnews).mean(axis=0))
+        set_flat_params_to(policy_net, xnew)
         prev_params = get_flat_params_from(policy_net)
         for advantages, states, actions in zip(advantages_list, states_list, actions_list):
             losses.append(trpo_loss(advantages, states, actions, prev_params, prev_params).detach().numpy())
-        fval = np.array(losses).mean()
-
-        ls_flag = False
-        for (n_backtracks, stepfrac) in enumerate(0.5 ** np.arange(10)):
-            new_losses = []
-            kls = []
-            xnew = prev_params + stepfrac * fullstep
-            for advantages, states, actions in zip(advantages_list, states_list, actions_list):
-                new_losses.append(trpo_loss(advantages, states, actions, prev_params, xnew).data)
-                kls.append(compute_kl(states, prev_params, xnew).detach().numpy())
-            new_loss = np.array(new_losses).mean()
-            kl = np.array(kls).mean()
-            # print(new_loss - fval, kl)
-            if new_loss - fval < 0 and kl < 0.01:
-                set_flat_params_to(policy_net, xnew)
-                writer.add_scalar("n_backtracks", n_backtracks, i_episode)
-                ls_flag = True
-                break
-        time_ls = time() - time_begin
-        if ls_flag:
-            print('Episode {}. Linear search is done in {} steps, using time {}'
-                  .format(i_episode, n_backtracks, time_ls))
-        else:
-            print('Episode {}. Linear search is done but failed, using time {}'
-                  .format(i_episode, time_ls))
 
         rewards = [log['avg_reward'] for log in logs]
         average_reward = np.array(rewards).mean()
