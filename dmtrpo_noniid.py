@@ -19,7 +19,7 @@ from torch.nn.utils.convert_parameters import parameters_to_vector, vector_to_pa
 import numpy as np
 from torch.distributions.kl import kl_divergence
 # from core.natural_gradient import conjugate_gradient_parallel
-from core.natural_gradient_ray import local_conjugate_gradient_parallel_and_line_search
+from core.natural_gradient_ray import conjugate_gradient_parallel
 from core.policy_gradient import compute_policy_gradient_parallel_noniid
 from core.log_determinant import compute_log_determinant
 import envs
@@ -30,9 +30,18 @@ torch.utils.backcompat.broadcast_warning.enabled = True
 torch.utils.backcompat.keepdim_warning.enabled = True
 torch.set_default_tensor_type('torch.DoubleTensor')
 
+# os.environ["CUDA_VISIBLE_DEVICES"] = '0'
+
+
 
 def main(args):
-    ray.init(num_cpus=args.num_workers, num_gpus=1)
+    ray.init(num_cpus=args.num_workers, num_gpus=args.num_gpus)
+    @ray.remote(num_gpus=1)
+    def ray_init_gpu(device):
+        torch.tensor(1).to(device)
+    init_id = ray_init_gpu.remote(args.device)
+    ray.get(init_id)
+
     dtype = torch.double
     torch.set_default_dtype(dtype)
     dummy_env = gym.make(args.env_name)
@@ -51,11 +60,11 @@ def main(args):
     batch_size = args.batch_size
     running_state = ZFilter((num_inputs,), clip=5)
 
-    algo = "local_trpo_FL"
+    algo = "dmtrpo_FL"
     logdir = "./algo_{}/env_{}/batchsize_{}_nworkers_{}_seed_{}_time{}".format(algo, str(args.env_name), batch_size, args.agent_count, args.seed, time())
     writer = SummaryWriter(logdir)
 
-    agents = AgentColletion(args.env_name, policy_net, 'cpu', running_state=running_state, render=args.render,
+    agents = AgentCollection(args.env_name, policy_net, 'cpu', running_state=running_state, render=args.render,
                              num_agents=args.agent_count, num_parallel_workers=args.num_workers)
 
     def trpo_loss(advantages, states, actions, params, params_trpo_ls):
@@ -108,17 +117,63 @@ def main(args):
         time_pg = time() - time_begin
         print('Episode {}. Computing policy gradients is done, using time {}.'.format(i_episode, time_pg))
 
-        # Computing Conjugate Gradient
-        print('Episode {}. Computing the mean of natural gradient directions...'.format(i_episode))
-        xnews = local_conjugate_gradient_parallel_and_line_search(trpo_loss, compute_kl, policy_net, states_list,
-                                                                  advantages_list, actions_list, policy_gradients,
-                                                                  args.max_kl, args.cg_damping, args.cg_iter)
+        # Computing Log-determinants
+        print('Episode {}. Computing the log determinants of Fisher matrices...'.format(i_episode))
+        time_begin = time()
+        log_determinants = compute_log_determinant(policy_net, states_list, matrix_dim, damping=args.cg_damping,
+                                                   device=args.device)
+        # log_determinants = np.ones(args.agent_count)
+        log_determinants_mean = np.array(log_determinants).mean()
+        # for log_determinant, agent_id in zip(log_determinants, range(args.agent_count)):
+        #     print("\t normalized log det for agent {} is {}".format(agent_id, log_determinant - log_determinants_mean))
+        normalized_log_determinants = np.array(log_determinants) - log_determinants_mean
+        normalized_determinants = np.exp(normalized_log_determinants/5)
+        time_log_det = time() - time_begin
+        print('Episode {}. Computing the log determinants of Fisher matrices is done, using time {}'
+              .format(i_episode, time_log_det))
 
-        xnew = torch.from_numpy(np.array(xnews).mean(axis=0))
-        set_flat_params_to(policy_net, xnew)
+        # Computing Conjugate Gradient
+        print('Episode {}. Computing the harmonic mean of natural gradient directions...'.format(i_episode))
+        time_begin = time()
+        stepdirs = conjugate_gradient_parallel(policy_net, states_list, pg,
+                                               args.max_kl, args.cg_damping, args.cg_iter)
+        fullstep = np.average(stepdirs, axis=0, weights=normalized_determinants)
+        fullstep = torch.from_numpy(fullstep)
+        time_ng = time() - time_begin
+        print('Episode {}. Computing the harmonic mean of natural gradient directions is done, using time {}'
+              .format(i_episode, time_ng))
+
+        # Linear Search
+        print('Episode {}. Linear search...'.format(i_episode))
+        time_begin = time()
         prev_params = get_flat_params_from(policy_net)
         for advantages, states, actions in zip(advantages_list, states_list, actions_list):
             losses.append(trpo_loss(advantages, states, actions, prev_params, prev_params).detach().numpy())
+        fval = np.array(losses).mean()
+
+        ls_flag = False
+        for (n_backtracks, stepfrac) in enumerate(0.5 ** np.arange(10)):
+            new_losses = []
+            kls = []
+            xnew = prev_params + stepfrac * fullstep
+            for advantages, states, actions in zip(advantages_list, states_list, actions_list):
+                new_losses.append(trpo_loss(advantages, states, actions, prev_params, xnew).data)
+                kls.append(compute_kl(states, prev_params, xnew).detach().numpy())
+            new_loss = np.array(new_losses).mean()
+            kl = np.array(kls).mean()
+            # print(new_loss - fval, kl)
+            if new_loss - fval < 0 and kl < 0.01:
+                set_flat_params_to(policy_net, xnew)
+                writer.add_scalar("n_backtracks", n_backtracks, i_episode)
+                ls_flag = True
+                break
+        time_ls = time() - time_begin
+        if ls_flag:
+            print('Episode {}. Linear search is done in {} steps, using time {}'
+                  .format(i_episode, n_backtracks, time_ls))
+        else:
+            print('Episode {}. Linear search is done but failed, using time {}'
+                  .format(i_episode, time_ls))
 
         rewards = [log['avg_reward'] for log in logs]
         average_reward = np.array(rewards).mean()
@@ -127,7 +182,7 @@ def main(args):
             print('Episode {}. Average reward {:.2f}'.format(
                 i_episode, average_reward))
             writer.add_scalar("Avg_return", average_reward, i_episode*args.agent_count*batch_size)
-        if i_episode * args.agent_count * batch_size > 1e7:
+        if i_episode * args.agent_count * batch_size > 2e6:
             break
 
 
@@ -136,7 +191,7 @@ if __name__ == '__main__':
     # import multiprocessing as mp
     # mp.set_start_method('spawn')
 
-    parser = argparse.ArgumentParser(description='Local TRPO with non-iid Environment')
+    parser = argparse.ArgumentParser(description='Deternimistic mean TRPO with non-iid Environment')
 
     # MDP
     parser.add_argument('--seed', type=int, default=1, metavar='N',
@@ -175,12 +230,16 @@ if __name__ == '__main__':
                         help='interval between training status logs (default: 10)')
     parser.add_argument('--device', type=str, default='cpu',
                         help='set the device (cpu or cuda)')
-    parser.add_argument('--num-workers', type=int, default=10,
+    parser.add_argument('--num-workers', type=int, default=4,
                         help='number of workers for parallel computing')
+    parser.add_argument('--num-gpus', type=int, default=1,
+                        help='number of gpus for parallel computing log determinants')
 
     args = parser.parse_args()
 
     args.device = torch.device(args.device
                         if torch.cuda.is_available() else 'cpu')
+
+    args.gpus = args.gpus if args.device == 'cuda' and torch.cuda.is_available() else 0
 
     main(args)
