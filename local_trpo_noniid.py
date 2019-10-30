@@ -14,13 +14,13 @@ from core.agent_noniid import AgentCollection
 from utils import *
 from running_state import ZFilter
 # from core.common import estimate_advantages_parallel
-from core.common_ray import estimate_advantages_parallel
+from core.common_ray import estimate_advantages_parallel_noniid
 from torch.nn.utils.convert_parameters import parameters_to_vector, vector_to_parameters
 import numpy as np
 from torch.distributions.kl import kl_divergence
 # from core.natural_gradient import conjugate_gradient_parallel
 from core.natural_gradient_ray import local_conjugate_gradient_parallel_and_line_search
-from core.policy_gradient import compute_policy_gradient_parallel
+from core.policy_gradient import compute_policy_gradient_parallel_noniid
 from core.log_determinant import compute_log_determinant
 import envs
 import ray
@@ -47,7 +47,7 @@ def main(args):
     flat_param = parameters_to_vector(policy_net.parameters())
     matrix_dim = flat_param.size()[0]
     print("number of total parameters: {}".format(matrix_dim))
-    value_net = Value(num_inputs)
+    value_nets_list = [Value(num_inputs) for _ in range(args.agent_count)]
     batch_size = args.batch_size
     running_state = ZFilter((num_inputs,), clip=5)
 
@@ -55,7 +55,7 @@ def main(args):
     logdir = "./algo_{}/env_{}/batchsize_{}_nworkers_{}_seed_{}_time{}".format(algo, str(args.env_name), batch_size, args.agent_count, args.seed, time())
     writer = SummaryWriter(logdir)
 
-    agents = AgentCollection(args.env_name, policy_net, 'cpu', running_state=running_state, render=args.render,
+    agents = AgentColletion(args.env_name, policy_net, 'cpu', running_state=running_state, render=args.render,
                              num_agents=args.agent_count, num_parallel_workers=args.num_workers)
 
     def trpo_loss(advantages, states, actions, params, params_trpo_ls):
@@ -93,19 +93,18 @@ def main(args):
         print('Episode {}. Processing trajectories...'.format(i_episode))
         time_begin = time()
         advantages_list, returns_list, states_list, actions_list = \
-            estimate_advantages_parallel(memories, value_net, args.gamma, args.tau)
+            estimate_advantages_parallel_noniid(memories, value_nets_list, args.gamma, args.tau)
         time_process = time() - time_begin
         print('Episode {}. Processing trajectories is done, using time {}'.format(i_episode, time_process))
 
         # Computing Policy Gradient
         print('Episode {}. Computing policy gradients...'.format(i_episode))
         time_begin = time()
-        policy_gradients, value_net_update_params = compute_policy_gradient_parallel(policy_net, value_net, states_list, actions_list, returns_list, advantages_list)
+        policy_gradients, value_net_update_params = compute_policy_gradient_parallel_noniid(policy_net, value_nets_list, states_list, actions_list, returns_list, advantages_list)
         pg = np.array(policy_gradients).mean(axis=0)
         pg = torch.from_numpy(pg)
-        value_net_average_params = np.array(value_net_update_params).mean(axis=0)
-        value_net_average_params = torch.from_numpy(value_net_average_params)
-        vector_to_parameters(value_net_average_params, value_net.parameters())
+        for params, value_net in zip(value_net_update_params, value_nets_list):
+            vector_to_parameters(torch.from_numpy(params), value_net.parameters())
         time_pg = time() - time_begin
         print('Episode {}. Computing policy gradients is done, using time {}.'.format(i_episode, time_pg))
 
@@ -137,7 +136,7 @@ if __name__ == '__main__':
     # import multiprocessing as mp
     # mp.set_start_method('spawn')
 
-    parser = argparse.ArgumentParser(description='Harmonic Mean TRPO with iid Environment')
+    parser = argparse.ArgumentParser(description='Local TRPO with non-iid Environment')
 
     # MDP
     parser.add_argument('--seed', type=int, default=1, metavar='N',
@@ -176,7 +175,7 @@ if __name__ == '__main__':
                         help='interval between training status logs (default: 10)')
     parser.add_argument('--device', type=str, default='cpu',
                         help='set the device (cpu or cuda)')
-    parser.add_argument('--num-workers', type=int, default=4,
+    parser.add_argument('--num-workers', type=int, default=10,
                         help='number of workers for parallel computing')
 
     args = parser.parse_args()

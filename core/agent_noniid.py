@@ -4,6 +4,7 @@ from utils2.torch import *
 import ray
 from running_state import ZFilter
 import gym
+import numpy as np
 
 @ray.remote
 def collect_samples(pid, env, policy, custom_reward,
@@ -183,6 +184,9 @@ class AgentCollection:
         self.render = render
         self.num_parallel_workers = num_parallel_workers
         self.num_agents = num_agents
+        self.biases = []
+        for _ in range(self.num_agents):
+            self.biases.append(np.random.uniform(-0.5, 0.5))
 
     def collect_samples(self, min_batch_size):
         to_device(torch.device('cpu'), self.policy)
@@ -208,17 +212,11 @@ class AgentCollection:
         return worker_memories, worker_logs
 
     def collect_samples_noniid(self, min_batch_size):
-        import numpy
-        self.biases = []
-        for _ in range(self.num_agents):
-            self.biases.append(numpy.random.uniform(-0.5, 0.5))
         to_device(torch.device('cpu'), self.policy)
         result_ids = []
         for i in range(self.num_agents):
             result_ids.append(collect_samples_noniid.remote(i, self.envs[i], self.policy, self.custom_reward, self.biases[i], self.mean_action,
                            False, self.running_state, min_batch_size))
-
-
         worker_logs = [None] * self.num_agents
         worker_memories = [None] * self.num_agents
         # print(len(result_ids))
