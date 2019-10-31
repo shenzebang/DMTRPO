@@ -24,6 +24,7 @@ from core.policy_gradient import compute_policy_gradient_parallel
 from core.log_determinant import compute_log_determinant
 import ray
 import os
+import envs
 
 torch.utils.backcompat.broadcast_warning.enabled = True
 torch.utils.backcompat.keepdim_warning.enabled = True
@@ -154,6 +155,23 @@ def main(args):
         rewards = [log['avg_reward'] for log in logs]
         average_reward = np.array(rewards).mean()
 
+        # render
+        # state = env.reset()
+        # traj = []
+        # for _ in range(100):
+        #     action = policy_net.select_action(torch.tensor(state)).numpy()
+        #     state, reward, done, _ = env.step(action)
+        #     traj.append(state)
+        #     if done:
+        #         break
+        # import matplotlib.pyplot as plt
+        # traj = np.array(traj)
+        # f = plt.figure()
+        # plt.plot(traj[:,0], traj[:,1])
+        # plt.xlim(-1,1)
+        # plt.ylim(-1,1)
+        # plt.show()
+
         if i_episode % args.log_interval == 0:
             print('Episode {}. Average reward {:.2f}'.format(
                 i_episode, average_reward))
@@ -217,6 +235,6 @@ if __name__ == '__main__':
     args.batch_size = 1000
     args.max_kl = 0.01
     args.num_workers = 20
-    args.env_name = 'HalfCheetah-v2'
+    args.env_name = '2DNavigation-v1'
     args.seed = 111
     main(args)

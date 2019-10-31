@@ -126,8 +126,8 @@ class HalfCheetahDirEnv(HalfCheetahEnv):
 class HalfCheetahVelEnv_FL(HalfCheetahEnv):
     """Half-cheetah environment with target velocity
     """
-    def __init__(self, goal_vel):
-        self.goal_vel = goal_vel
+    def __init__(self):
+        self.goal_vel = np.random.uniform(-2.0, 2.0)
         super(HalfCheetahVelEnv_FL, self).__init__()
 
     def step(self, action):

@@ -176,7 +176,7 @@ if __name__ == '__main__':
                         help='number of agents (default: 100)')
     parser.add_argument('--gamma', type=float, default=0.995, metavar='G',
                         help='discount factor (default: 0.995)')
-    parser.add_argument('--env-name', default="HalfCheetah-v2", metavar='G',
+    parser.add_argument('--env-name', default="2DNavigation-v1", metavar='G',
                         help='name of the environment to run')
     parser.add_argument('--tau', type=float, default=0.97, metavar='G',
                         help='gae (default: 0.97)')
@@ -206,12 +206,12 @@ if __name__ == '__main__':
                         help='interval between training status logs (default: 10)')
     parser.add_argument('--device', type=str, default='cpu',
                         help='set the device (cpu or cuda)')
-    parser.add_argument('--num-workers', type=int, default=10,
+    parser.add_argument('--num-workers', type=int, default=5,
                         help='number of workers for parallel computing')
 
     args = parser.parse_args()
 
     args.device = torch.device(args.device
                         if torch.cuda.is_available() else 'cpu')
-
+    args.agent_count = 20
     main(args)

@@ -111,7 +111,7 @@ def collect_samples_noniid(pid, env, policy, custom_reward, bias,
             action = int(action) if policy.is_disc_action else action.astype(np.float64)
             next_state, reward, done, _ = env.step(action)
             # added for non-iid environment
-            reward += bias
+            # reward += bias
             reward_episode += reward
             if running_state is not None:
                 next_state = running_state(next_state)
@@ -186,8 +186,8 @@ class AgentCollection:
         self.num_agents = num_agents
         self.biases = []
         for _ in range(self.num_agents):
-            self.biases.append(np.random.uniform(-0.5, 0.5))
-
+            #self.biases.append(np.random.uniform(-0.5, 0.5))
+            self.biases.append(0.0)
     def collect_samples(self, min_batch_size):
         to_device(torch.device('cpu'), self.policy)
         result_ids = []
