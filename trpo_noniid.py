@@ -149,7 +149,7 @@ def main(args):
             print('Episode {}. Average reward {:.2f}'.format(
                 i_episode, average_reward))
             writer.add_scalar("Avg_return", average_reward, i_episode*args.agent_count*batch_size)
-        if i_episode * args.agent_count * batch_size > 1e7:
+        if i_episode * args.agent_count * batch_size > 1e8:
             break
 
 
@@ -204,7 +204,5 @@ if __name__ == '__main__':
 
     args.device = torch.device(args.device
                         if torch.cuda.is_available() else 'cpu')
-    args.agent_count = 20
-    args.num_workers = 10
-    args.env_name = '2DNavigation-v1'
+
     main(args)
