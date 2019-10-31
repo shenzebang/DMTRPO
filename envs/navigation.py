@@ -93,7 +93,8 @@ class Navigation2DEnv_FL(gym.Env):
         assert self.action_space.contains(action)
         x = self._state[0]
         y = self._state[1]
-        reward = -np.sqrt(x ** 2 + y ** 2)
+        speed = np.dot(action, action)
+        reward = -np.sqrt(x ** 2 + y ** 2)**2 - speed*0.1
         done = ((np.abs(x) < 0.01) and (np.abs(y) < 0.01))
         if done:
             print("done")
