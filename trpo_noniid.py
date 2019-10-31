@@ -149,7 +149,7 @@ def main(args):
             print('Episode {}. Average reward {:.2f}'.format(
                 i_episode, average_reward))
             writer.add_scalar("Avg_return", average_reward, i_episode*args.agent_count*batch_size)
-        if i_episode * args.agent_count * batch_size > 1e7:
+        if i_episode * args.agent_count * batch_size > 1e8:
             break
 
 
