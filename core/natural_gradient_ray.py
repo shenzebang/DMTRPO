@@ -1,10 +1,8 @@
 import multiprocessing as mp
-import torch
 from torch.distributions.kl import kl_divergence
-from models import detach_distribution
-from torch import Tensor
+from core.models import detach_distribution
 import ray
-from utils import *
+from utils.utils import *
 
 def cg(mvp, b, nsteps, residual_tol=1e-10):
     x = torch.zeros(b.size(), dtype=b.dtype)
@@ -95,3 +93,32 @@ def local_conjugate_gradient_parallel_and_line_search(trpo_loss, compute_kl, pol
                 break
 
     return xnews
+
+def conjugate_gradient_global(policy_net, states_list, pg, max_kl=1e-3, cg_damping=1e-2, cg_iter=10):
+    states = torch.cat(states_list)
+    for param in policy_net.parameters():
+        param.requires_grad = True
+    def _fvp(states, damping=1e-2):
+        def __fvp(vector, damping=damping):
+            pi = policy_net(states)
+            pi_detach = detach_distribution(pi)
+            kl = torch.mean(kl_divergence(pi_detach, pi))
+
+            grads = torch.autograd.grad(kl, policy_net.parameters(), create_graph=True)
+            flat_grad_kl = torch.cat([grad.view(-1) for grad in grads])
+
+            kl_v = (flat_grad_kl * vector).sum()
+            grads = torch.autograd.grad(kl_v, policy_net.parameters())
+            flat_grad_grad_kl = torch.cat([grad.view(-1) for grad in grads])
+
+            return flat_grad_grad_kl + vector * damping
+
+        return __fvp
+
+    fvp = _fvp(states, damping=cg_damping)
+    stepdir = cg(fvp, -pg, cg_iter)
+    shs = 0.5 * (stepdir * fvp(stepdir)).sum(0, keepdim=True)
+    lm = torch.sqrt(shs / max_kl)
+    fullstep = stepdir / lm[0]
+
+    return fullstep

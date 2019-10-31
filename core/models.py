@@ -48,6 +48,7 @@ class Policy(nn.Module):
         mu = F.linear(output, weight=params['mu.weight'],
                       bias=params['mu.bias'])
         scale = torch.exp(torch.clamp(params['sigma'], min=self.min_log_std))
+        #print(mu.data, scale.data)
 
         return Normal(loc=mu, scale=scale)
 
@@ -60,6 +61,10 @@ class Policy(nn.Module):
         pi = self.forward(state)
         action = pi.sample()
         return action
+
+    def mean_action(self, state):
+        pi = self.forward(state)
+        return pi.loc
 
 
 # class Policy(nn.Module):

@@ -4,15 +4,15 @@ import gym
 import scipy.optimize
 from tensorboardX import SummaryWriter
 
-from models import *
+from core.models import *
 
 from torch.autograd import Variable
 from torch import Tensor
 import torch.tensor as tensor
 # from core.agent import AgentCollection
 from core.agent_noniid import AgentCollection
-from utils import *
-from running_state import ZFilter
+from utils.utils import *
+from core.running_state import ZFilter
 # from core.common import estimate_advantages_parallel
 from core.common_ray import estimate_advantages_parallel_noniid
 from torch.nn.utils.convert_parameters import parameters_to_vector, vector_to_parameters
@@ -85,7 +85,7 @@ def main(args):
         # Sample Trajectories
         print('Episode {}. Sampling trajectories...'.format(i_episode))
         time_begin = time()
-        memories, logs = agents.collect_samples_noniid(batch_size)
+        memories, logs = agents.collect_samples_noniid(batch_size, False)
         time_sample = time() - time_begin
         print('Episode {}. Sampling trajectories is done, using time {}.'.format(i_episode, time_sample))
 
@@ -158,7 +158,7 @@ def main(args):
             print('Episode {}. Average reward {:.2f}'.format(
                 i_episode, average_reward))
             writer.add_scalar("Avg_return", average_reward, i_episode*args.agent_count*batch_size)
-        if i_episode * args.agent_count * batch_size > 1e7:
+        if i_episode * args.agent_count * batch_size > 3e7:
             break
 
 
@@ -176,13 +176,13 @@ if __name__ == '__main__':
                         help='number of agents (default: 100)')
     parser.add_argument('--gamma', type=float, default=0.995, metavar='G',
                         help='discount factor (default: 0.995)')
-    parser.add_argument('--env-name', default="HalfCheetah-v2", metavar='G',
+    parser.add_argument('--env-name', default="2DNavigation-v1", metavar='G',
                         help='name of the environment to run')
     parser.add_argument('--tau', type=float, default=0.97, metavar='G',
                         help='gae (default: 0.97)')
 
     # Policy network (relu activation function)
-    parser.add_argument('--hidden-size', type=int, default=64,
+    parser.add_argument('--hidden-size', type=int, default=8,
                         help='number of hidden units per layer')
     parser.add_argument('--num-layers', type=int, default=2,
                         help='number of hidden layers')
@@ -213,5 +213,7 @@ if __name__ == '__main__':
 
     args.device = torch.device(args.device
                         if torch.cuda.is_available() else 'cpu')
-
+    args.agent_count = 100
+    args.num_workers = 20
+    args.batch_size = 2000
     main(args)

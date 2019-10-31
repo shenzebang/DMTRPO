@@ -46,3 +46,8 @@ register(
     max_episode_steps=100
 )
 
+register(
+    '2DNavigation-v1',
+    entry_point='envs.navigation:Navigation2DEnv_FL',
+    max_episode_steps=100
+)

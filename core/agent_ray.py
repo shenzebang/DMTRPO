@@ -1,8 +1,7 @@
-import multiprocessing
 from utils2.replay_memory import Memory
 from utils2.torch import *
 import ray
-from running_state import ZFilter
+from core.running_state import ZFilter
 
 @ray.remote
 def collect_samples(pid, env, policy, custom_reward,
@@ -19,7 +18,8 @@ def collect_samples(pid, env, policy, custom_reward,
     min_c_reward = 1e6
     max_c_reward = -1e6
     num_episodes = 0
-    running_state = ZFilter((env.observation_space.shape[0],), clip=5)
+    #running_state = ZFilter((env.observation_space.shape[0],), clip=5)
+    running_state = None
     while num_steps < min_batch_size:
         state = env.reset()
         if running_state is not None:
@@ -104,7 +104,8 @@ class AgentCollection:
         self.device = device
         self.custom_reward = custom_reward
         self.mean_action = mean_action
-        self.running_state = running_state
+        #self.running_state = running_state
+        self.running_state = None
         self.render = render
         self.num_parallel_workers = num_parallel_workers
         self.num_agents = num_agents

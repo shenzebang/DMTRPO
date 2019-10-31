@@ -4,15 +4,15 @@ import gym
 import scipy.optimize
 from tensorboardX import SummaryWriter
 
-from models import *
+from core.models import *
 
 from torch.autograd import Variable
 from torch import Tensor
 import torch.tensor as tensor
 # from core.agent import AgentCollection
 from core.agent_ray import AgentCollection
-from utils import *
-from running_state import ZFilter
+from utils.utils import *
+from core.running_state import ZFilter
 # from core.common import estimate_advantages_parallel
 from core.common_ray import estimate_advantages_parallel
 from torch.nn.utils.convert_parameters import parameters_to_vector, vector_to_parameters
@@ -25,6 +25,7 @@ from core.log_determinant import compute_log_determinant
 # from envs.mujoco.half_cheetah import HalfCheetahVelEnv_FL
 import ray
 import os
+import envs
 
 torch.utils.backcompat.broadcast_warning.enabled = True
 torch.utils.backcompat.keepdim_warning.enabled = True
