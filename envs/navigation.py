@@ -96,7 +96,7 @@ class Navigation2DEnv_FL(gym.Env):
         x = self._state[0]
         y = self._state[1]
         reward = -np.sqrt(x ** 2 + y ** 2)
-        done = ((np.abs(x) < 0.1) and (np.abs(y) < 0.1))
+        done = ((np.abs(x) < 0.01) and (np.abs(y) < 0.01))
 
         return self._state, reward, done, {}
 

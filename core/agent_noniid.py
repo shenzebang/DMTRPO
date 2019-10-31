@@ -1,8 +1,7 @@
-import multiprocessing
 from utils2.replay_memory import Memory
 from utils2.torch import *
 import ray
-from running_state import ZFilter
+from core.running_state import ZFilter
 import gym
 import numpy as np
 
@@ -81,7 +80,7 @@ def collect_samples(pid, env, policy, custom_reward,
 
 @ray.remote
 def collect_samples_noniid(pid, env, policy, custom_reward, bias,
-                    mean_action, render, running_state, min_batch_size):
+                    mean_action, render, use_running_state, min_batch_size, add_bias):
 
     torch.randn(pid)
     log = dict()
@@ -97,7 +96,7 @@ def collect_samples_noniid(pid, env, policy, custom_reward, bias,
     running_state = ZFilter((env.observation_space.shape[0],), clip=5)
     while num_steps < min_batch_size:
         state = env.reset()
-        if running_state is not None:
+        if use_running_state:
             state = running_state(state)
         reward_episode = 0
 
@@ -105,13 +104,14 @@ def collect_samples_noniid(pid, env, policy, custom_reward, bias,
             state_var = tensor(state).unsqueeze(0)
             with torch.no_grad():
                 if mean_action:
-                    action = policy(state_var)[0][0].numpy()
+                    action = policy.mean_action(state_var)[0].numpy()
                 else:
                     action = policy.select_action(state_var)[0].numpy()
             action = int(action) if policy.is_disc_action else action.astype(np.float64)
             next_state, reward, done, _ = env.step(action)
             # added for non-iid environment
-            # reward += bias
+            if add_bias:
+                reward += bias
             reward_episode += reward
             if running_state is not None:
                 next_state = running_state(next_state)
@@ -186,8 +186,8 @@ class AgentCollection:
         self.num_agents = num_agents
         self.biases = []
         for _ in range(self.num_agents):
-            #self.biases.append(np.random.uniform(-0.5, 0.5))
-            self.biases.append(0.0)
+            self.biases.append(np.random.uniform(-0.5, 0.5))
+
     def collect_samples(self, min_batch_size):
         to_device(torch.device('cpu'), self.policy)
         result_ids = []
@@ -211,12 +211,12 @@ class AgentCollection:
         # log['action_max'] = np.max(np.vstack(batch.action), axis=0)
         return worker_memories, worker_logs
 
-    def collect_samples_noniid(self, min_batch_size):
+    def collect_samples_noniid(self, min_batch_size, add_bias=True):
         to_device(torch.device('cpu'), self.policy)
         result_ids = []
         for i in range(self.num_agents):
             result_ids.append(collect_samples_noniid.remote(i, self.envs[i], self.policy, self.custom_reward, self.biases[i], self.mean_action,
-                           False, self.running_state, min_batch_size))
+                           False, False, min_batch_size, add_bias))
         worker_logs = [None] * self.num_agents
         worker_memories = [None] * self.num_agents
         # print(len(result_ids))

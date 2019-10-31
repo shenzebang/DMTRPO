@@ -1,7 +1,7 @@
 import multiprocessing as mp
 import torch
 from torch.distributions.kl import kl_divergence
-from models import detach_distribution
+from core.models import detach_distribution
 from torch.autograd import Variable
 import math
 

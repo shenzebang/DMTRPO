@@ -2,9 +2,7 @@ import numpy as np
 import ray
 import torch
 from torch.distributions.kl import kl_divergence
-from models import detach_distribution
-import os
-from torch.nn.utils.convert_parameters import parameters_to_vector, vector_to_parameters
+from core.models import detach_distribution
 
 
 @ray.remote(num_gpus=.25)

@@ -1,8 +1,7 @@
 import numpy as np
 import torch
 from torch.distributions.kl import kl_divergence
-from models import detach_distribution
-from torch.nn.utils.convert_parameters import parameters_to_vector, vector_to_parameters
+from core.models import detach_distribution
 
 
 def _compute_log_determinant(mvp, num_trace, cheby_degree, l_min, l_max, matrix_dim):
