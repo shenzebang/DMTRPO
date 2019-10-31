@@ -204,7 +204,5 @@ if __name__ == '__main__':
 
     args.device = torch.device(args.device
                         if torch.cuda.is_available() else 'cpu')
-    args.agent_count = 20
-    args.num_workers = 10
-    args.env_name = '2DNavigation-v1'
+
     main(args)
