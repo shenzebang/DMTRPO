@@ -30,15 +30,25 @@ torch.utils.backcompat.broadcast_warning.enabled = True
 torch.utils.backcompat.keepdim_warning.enabled = True
 torch.set_default_tensor_type('torch.DoubleTensor')
 
+# os.environ["CUDA_VISIBLE_DEVICES"] = '0'
+
+
 
 def main(args):
-    ray.init(num_cpus=args.num_workers, num_gpus=1)
+    ray.init(num_cpus=args.num_workers, num_gpus=args.num_gpus)
+    @ray.remote(num_gpus=1)
+    def ray_init_gpu(device):
+        torch.tensor(1).to(device)
+    init_id = ray_init_gpu.remote(args.device)
+    ray.get(init_id)
+
     dtype = torch.double
     torch.set_default_dtype(dtype)
     env = gym.make(args.env_name)
     num_inputs = env.observation_space.shape[0]
     num_actions = env.action_space.shape[0]
     env.seed(args.seed)
+    np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     policy_net = Policy(num_inputs, num_actions, hidden_sizes = (args.hidden_size,) * args.num_layers)
     print("Network structure:")
@@ -51,7 +61,8 @@ def main(args):
     batch_size = args.batch_size
     running_state = ZFilter((env.observation_space.shape[0],), clip=5)
 
-    logdir = "./DTRPO/%s/batchsize_%d_nworkers_%d_%d"%(str(args.env_name), batch_size, args.agent_count, args.seed)
+    algo = "dmtrpo"
+    logdir = "./algo_{}/env_{}/batchsize_{}_nworkers_{}_seed_{}_time{}".format(algo, str(args.env_name), batch_size, args.agent_count, args.seed, time())
     writer = SummaryWriter(logdir)
 
     agents = AgentCollection(env, policy_net, 'cpu', running_state=running_state, render=args.render,
@@ -113,9 +124,12 @@ def main(args):
         time_begin = time()
         log_determinants = compute_log_determinant(policy_net, states_list, matrix_dim, damping=args.cg_damping,
                                                    device=args.device)
+        # log_determinants = np.ones(args.agent_count)
         log_determinants_mean = np.array(log_determinants).mean()
-        for log_determinant, agent_id in zip(log_determinants, range(args.agent_count)):
-            print("\t normalized log det for agent {} is {}".format(agent_id, log_determinant - log_determinants_mean))
+        # for log_determinant, agent_id in zip(log_determinants, range(args.agent_count)):
+        #     print("\t normalized log det for agent {} is {}".format(agent_id, log_determinant - log_determinants_mean))
+        normalized_log_determinants = np.array(log_determinants) - log_determinants_mean
+        normalized_determinants = np.exp(normalized_log_determinants/5)
         time_log_det = time() - time_begin
         print('Episode {}. Computing the log determinants of Fisher matrices is done, using time {}'
               .format(i_episode, time_log_det))
@@ -125,7 +139,7 @@ def main(args):
         time_begin = time()
         stepdirs = conjugate_gradient_parallel(policy_net, states_list, pg,
                                                args.max_kl, args.cg_damping, args.cg_iter)
-        fullstep = np.array(stepdirs).mean(axis=0)
+        fullstep = np.average(stepdirs, axis=0, weights=normalized_determinants)
         fullstep = torch.from_numpy(fullstep)
         time_ng = time() - time_begin
         print('Episode {}. Computing the harmonic mean of natural gradient directions is done, using time {}'
@@ -188,7 +202,7 @@ if __name__ == '__main__':
                         help='number of agents (default: 100)')
     parser.add_argument('--gamma', type=float, default=0.995, metavar='G',
                         help='discount factor (default: 0.995)')
-    parser.add_argument('--env-name', default="Humanoid-v2", metavar='G',
+    parser.add_argument('--env-name', default="Swimmer-v2", metavar='G',
                         help='name of the environment to run')
     parser.add_argument('--tau', type=float, default=0.97, metavar='G',
                         help='gae (default: 0.97)')
@@ -220,10 +234,14 @@ if __name__ == '__main__':
                         help='set the device (cpu or cuda)')
     parser.add_argument('--num-workers', type=int, default=4,
                         help='number of workers for parallel computing')
+    parser.add_argument('--num-gpus', type=int, default=1,
+                        help='number of gpus for parallel computing log determinants')
 
     args = parser.parse_args()
 
     args.device = torch.device(args.device
                         if torch.cuda.is_available() else 'cpu')
+
+    args.gpus = args.gpus if args.device == 'cuda' and torch.cuda.is_available() else 0
 
     main(args)

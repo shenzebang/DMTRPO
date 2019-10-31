@@ -10,19 +10,19 @@ from torch.autograd import Variable
 from torch import Tensor
 import torch.tensor as tensor
 # from core.agent import AgentCollection
-from core.agent_ray import AgentCollection
+from core.agent_noniid import AgentCollection
 from utils import *
 from running_state import ZFilter
 # from core.common import estimate_advantages_parallel
-from core.common_ray import estimate_advantages_parallel
+from core.common_ray import estimate_advantages_parallel_noniid
 from torch.nn.utils.convert_parameters import parameters_to_vector, vector_to_parameters
 import numpy as np
 from torch.distributions.kl import kl_divergence
 # from core.natural_gradient import conjugate_gradient_parallel
-from core.natural_gradient_ray import conjugate_gradient_parallel
-from core.policy_gradient import compute_policy_gradient_parallel
+from core.natural_gradient_ray import local_conjugate_gradient_parallel_and_line_search
+from core.policy_gradient import compute_policy_gradient_parallel_noniid
 from core.log_determinant import compute_log_determinant
-# from envs.mujoco.half_cheetah import HalfCheetahVelEnv_FL
+import envs
 import ray
 import os
 
@@ -35,10 +35,10 @@ def main(args):
     ray.init(num_cpus=args.num_workers, num_gpus=1)
     dtype = torch.double
     torch.set_default_dtype(dtype)
-    env = gym.make(args.env_name)
-    num_inputs = env.observation_space.shape[0]
-    num_actions = env.action_space.shape[0]
-    env.seed(args.seed)
+    dummy_env = gym.make(args.env_name)
+    num_inputs = dummy_env.observation_space.shape[0]
+    num_actions = dummy_env.action_space.shape[0]
+    #env.seed(args.seed)
     torch.manual_seed(args.seed)
     policy_net = Policy(num_inputs, num_actions, hidden_sizes = (args.hidden_size,) * args.num_layers)
     print("Network structure:")
@@ -47,14 +47,15 @@ def main(args):
     flat_param = parameters_to_vector(policy_net.parameters())
     matrix_dim = flat_param.size()[0]
     print("number of total parameters: {}".format(matrix_dim))
-    value_net = Value(num_inputs)
+    value_nets_list = [Value(num_inputs) for _ in range(args.agent_count)]
     batch_size = args.batch_size
-    running_state = ZFilter((env.observation_space.shape[0],), clip=5)
+    running_state = ZFilter((num_inputs,), clip=5)
 
-    logdir = "./DTRPO/%s/batchsize_%d_nworkers_%d_%d"%(str(args.env_name), batch_size, args.agent_count, args.seed)
+    algo = "local_trpo_FL"
+    logdir = "./algo_{}/env_{}/batchsize_{}_nworkers_{}_seed_{}_time{}".format(algo, str(args.env_name), batch_size, args.agent_count, args.seed, time())
     writer = SummaryWriter(logdir)
 
-    agents = AgentCollection(env, policy_net, 'cpu', running_state=running_state, render=args.render,
+    agents = AgentColletion(args.env_name, policy_net, 'cpu', running_state=running_state, render=args.render,
                              num_agents=args.agent_count, num_parallel_workers=args.num_workers)
 
     def trpo_loss(advantages, states, actions, params, params_trpo_ls):
@@ -84,7 +85,7 @@ def main(args):
         # Sample Trajectories
         print('Episode {}. Sampling trajectories...'.format(i_episode))
         time_begin = time()
-        memories, logs = agents.collect_samples(batch_size)
+        memories, logs = agents.collect_samples_noniid(batch_size)
         time_sample = time() - time_begin
         print('Episode {}. Sampling trajectories is done, using time {}.'.format(i_episode, time_sample))
 
@@ -92,76 +93,32 @@ def main(args):
         print('Episode {}. Processing trajectories...'.format(i_episode))
         time_begin = time()
         advantages_list, returns_list, states_list, actions_list = \
-            estimate_advantages_parallel(memories, value_net, args.gamma, args.tau)
+            estimate_advantages_parallel_noniid(memories, value_nets_list, args.gamma, args.tau)
         time_process = time() - time_begin
         print('Episode {}. Processing trajectories is done, using time {}'.format(i_episode, time_process))
 
         # Computing Policy Gradient
         print('Episode {}. Computing policy gradients...'.format(i_episode))
         time_begin = time()
-        policy_gradients, value_net_update_params = compute_policy_gradient_parallel(policy_net, value_net, states_list, actions_list, returns_list, advantages_list)
+        policy_gradients, value_net_update_params = compute_policy_gradient_parallel_noniid(policy_net, value_nets_list, states_list, actions_list, returns_list, advantages_list)
         pg = np.array(policy_gradients).mean(axis=0)
         pg = torch.from_numpy(pg)
-        value_net_average_params = np.array(value_net_update_params).mean(axis=0)
-        value_net_average_params = torch.from_numpy(value_net_average_params)
-        vector_to_parameters(value_net_average_params, value_net.parameters())
+        for params, value_net in zip(value_net_update_params, value_nets_list):
+            vector_to_parameters(torch.from_numpy(params), value_net.parameters())
         time_pg = time() - time_begin
         print('Episode {}. Computing policy gradients is done, using time {}.'.format(i_episode, time_pg))
 
-        # Computing Log-determinants
-        print('Episode {}. Computing the log determinants of Fisher matrices...'.format(i_episode))
-        time_begin = time()
-        log_determinants = compute_log_determinant(policy_net, states_list, matrix_dim, damping=args.cg_damping,
-                                                   device=args.device)
-        log_determinants_mean = np.array(log_determinants).mean()
-        for log_determinant, agent_id in zip(log_determinants, range(args.agent_count)):
-            print("\t normalized log det for agent {} is {}".format(agent_id, log_determinant - log_determinants_mean))
-        time_log_det = time() - time_begin
-        print('Episode {}. Computing the log determinants of Fisher matrices is done, using time {}'
-              .format(i_episode, time_log_det))
-
         # Computing Conjugate Gradient
-        print('Episode {}. Computing the harmonic mean of natural gradient directions...'.format(i_episode))
-        time_begin = time()
-        stepdirs = conjugate_gradient_parallel(policy_net, states_list, pg,
-                                               args.max_kl, args.cg_damping, args.cg_iter)
-        fullstep = np.array(stepdirs).mean(axis=0)
-        fullstep = torch.from_numpy(fullstep)
-        time_ng = time() - time_begin
-        print('Episode {}. Computing the harmonic mean of natural gradient directions is done, using time {}'
-              .format(i_episode, time_ng))
+        print('Episode {}. Computing the mean of natural gradient directions...'.format(i_episode))
+        xnews = local_conjugate_gradient_parallel_and_line_search(trpo_loss, compute_kl, policy_net, states_list,
+                                                                  advantages_list, actions_list, policy_gradients,
+                                                                  args.max_kl, args.cg_damping, args.cg_iter)
 
-        # Linear Search
-        print('Episode {}. Linear search...'.format(i_episode))
-        time_begin = time()
+        xnew = torch.from_numpy(np.array(xnews).mean(axis=0))
+        set_flat_params_to(policy_net, xnew)
         prev_params = get_flat_params_from(policy_net)
         for advantages, states, actions in zip(advantages_list, states_list, actions_list):
             losses.append(trpo_loss(advantages, states, actions, prev_params, prev_params).detach().numpy())
-        fval = np.array(losses).mean()
-
-        ls_flag = False
-        for (n_backtracks, stepfrac) in enumerate(0.5 ** np.arange(10)):
-            new_losses = []
-            kls = []
-            xnew = prev_params + stepfrac * fullstep
-            for advantages, states, actions in zip(advantages_list, states_list, actions_list):
-                new_losses.append(trpo_loss(advantages, states, actions, prev_params, xnew).data)
-                kls.append(compute_kl(states, prev_params, xnew).detach().numpy())
-            new_loss = np.array(new_losses).mean()
-            kl = np.array(kls).mean()
-            # print(new_loss - fval, kl)
-            if new_loss - fval < 0 and kl < 0.01:
-                set_flat_params_to(policy_net, xnew)
-                writer.add_scalar("n_backtracks", n_backtracks, i_episode)
-                ls_flag = True
-                break
-        time_ls = time() - time_begin
-        if ls_flag:
-            print('Episode {}. Linear search is done in {} steps, using time {}'
-                  .format(i_episode, n_backtracks, time_ls))
-        else:
-            print('Episode {}. Linear search is done but failed, using time {}'
-                  .format(i_episode, time_ls))
 
         rewards = [log['avg_reward'] for log in logs]
         average_reward = np.array(rewards).mean()
@@ -170,7 +127,7 @@ def main(args):
             print('Episode {}. Average reward {:.2f}'.format(
                 i_episode, average_reward))
             writer.add_scalar("Avg_return", average_reward, i_episode*args.agent_count*batch_size)
-        if i_episode * args.agent_count * batch_size > 2e6:
+        if i_episode * args.agent_count * batch_size > 1e7:
             break
 
 
@@ -179,7 +136,7 @@ if __name__ == '__main__':
     # import multiprocessing as mp
     # mp.set_start_method('spawn')
 
-    parser = argparse.ArgumentParser(description='Harmonic Mean TRPO with iid Environment')
+    parser = argparse.ArgumentParser(description='Local TRPO with non-iid Environment')
 
     # MDP
     parser.add_argument('--seed', type=int, default=1, metavar='N',
@@ -188,7 +145,7 @@ if __name__ == '__main__':
                         help='number of agents (default: 100)')
     parser.add_argument('--gamma', type=float, default=0.995, metavar='G',
                         help='discount factor (default: 0.995)')
-    parser.add_argument('--env-name', default="Humanoid-v2", metavar='G',
+    parser.add_argument('--env-name', default="HalfCheetah-v2", metavar='G',
                         help='name of the environment to run')
     parser.add_argument('--tau', type=float, default=0.97, metavar='G',
                         help='gae (default: 0.97)')
@@ -218,7 +175,7 @@ if __name__ == '__main__':
                         help='interval between training status logs (default: 10)')
     parser.add_argument('--device', type=str, default='cpu',
                         help='set the device (cpu or cuda)')
-    parser.add_argument('--num-workers', type=int, default=4,
+    parser.add_argument('--num-workers', type=int, default=10,
                         help='number of workers for parallel computing')
 
     args = parser.parse_args()

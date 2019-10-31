@@ -16,6 +16,7 @@ def get_flat_params_from(model):
 
 @ray.remote
 def compute_PG(pid, policy_net, value_net, states, actions, returns, advantages):
+
     """compute policy gradient and update value net by using samples in memory"""
     for param in policy_net.parameters():
         param.requires_grad = True
@@ -61,6 +62,23 @@ def compute_policy_gradient_parallel(policy_net, value_net, states_list, actions
     result_ids = []
     num_agents = len(advantages_list)
     for advantages, returns, states, actions, pid in zip(advantages_list, returns_list, states_list, actions_list, range(num_agents)):
+        result_id = compute_PG.remote(pid, policy_net, value_net, states.float(), actions, returns.float(), advantages)
+        result_ids.append(result_id)
+
+    policy_gradients = [None]*num_agents
+    value_net_update_params = [None]*num_agents
+
+    for result_id in result_ids:
+        pid, policy_gradient, value_net_update_param = ray.get(result_id)
+        policy_gradients[pid] = policy_gradient.numpy()
+        value_net_update_params[pid] = value_net_update_param
+
+    return policy_gradients, value_net_update_params
+
+def compute_policy_gradient_parallel_noniid(policy_net, value_nets_list, states_list, actions_list, returns_list, advantages_list):
+    result_ids = []
+    num_agents = len(advantages_list)
+    for value_net, advantages, returns, states, actions, pid in zip(value_nets_list, advantages_list, returns_list, states_list, actions_list, range(num_agents)):
         result_id = compute_PG.remote(pid, policy_net, value_net, states.float(), actions, returns.float(), advantages)
         result_ids.append(result_id)
 

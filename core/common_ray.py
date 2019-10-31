@@ -56,3 +56,23 @@ def estimate_advantages_parallel(memories, value_net, gamma, tau, device='cpu', 
 
     return advantages_list, returns_list, states_list, actions_list
 
+def estimate_advantages_parallel_noniid(memories, value_nets_list, gamma, tau, device='cpu', dtype=torch.float64, num_parallel_workers=mp.cpu_count()):
+    # ray.init()
+    result_ids = []
+    for memory, value_net, pid in zip(memories, value_nets_list, range(len(memories))):
+        result_ids.append(estimate_advantages.remote(memory,
+            value_net, gamma, tau, device, dtype, pid))
+
+    advantages_list = [None]*len(memories)
+    returns_list = [None]*len(memories)
+    states_list = [None] * len(memories)
+    actions_list = [None] * len(memories)
+    for result_id in result_ids:
+        pid, advantages, returns, states, actions = ray.get(result_id)
+        advantages_list[pid] = advantages
+        returns_list[pid] = returns
+        states_list[pid] = states
+        actions_list[pid] = actions
+
+    return advantages_list, returns_list, states_list, actions_list
+

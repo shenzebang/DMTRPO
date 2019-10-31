@@ -22,7 +22,6 @@ from torch.distributions.kl import kl_divergence
 from core.natural_gradient_ray import conjugate_gradient_parallel
 from core.policy_gradient import compute_policy_gradient_parallel
 from core.log_determinant import compute_log_determinant
-# from envs.mujoco.half_cheetah import HalfCheetahVelEnv_FL
 import ray
 import os
 
@@ -51,7 +50,8 @@ def main(args):
     batch_size = args.batch_size
     running_state = ZFilter((env.observation_space.shape[0],), clip=5)
 
-    logdir = "./DTRPO/%s/batchsize_%d_nworkers_%d_%d"%(str(args.env_name), batch_size, args.agent_count, args.seed)
+    algo = "hmtrpo"
+    logdir = "./algo_{}/env_{}/batchsize_{}_nworkers_{}_seed_{}_time{}".format(algo, str(args.env_name), batch_size, args.agent_count, args.seed, time())
     writer = SummaryWriter(logdir)
 
     agents = AgentCollection(env, policy_net, 'cpu', running_state=running_state, render=args.render,
@@ -108,18 +108,6 @@ def main(args):
         time_pg = time() - time_begin
         print('Episode {}. Computing policy gradients is done, using time {}.'.format(i_episode, time_pg))
 
-        # Computing Log-determinants
-        print('Episode {}. Computing the log determinants of Fisher matrices...'.format(i_episode))
-        time_begin = time()
-        log_determinants = compute_log_determinant(policy_net, states_list, matrix_dim, damping=args.cg_damping,
-                                                   device=args.device)
-        log_determinants_mean = np.array(log_determinants).mean()
-        for log_determinant, agent_id in zip(log_determinants, range(args.agent_count)):
-            print("\t normalized log det for agent {} is {}".format(agent_id, log_determinant - log_determinants_mean))
-        time_log_det = time() - time_begin
-        print('Episode {}. Computing the log determinants of Fisher matrices is done, using time {}'
-              .format(i_episode, time_log_det))
-
         # Computing Conjugate Gradient
         print('Episode {}. Computing the harmonic mean of natural gradient directions...'.format(i_episode))
         time_begin = time()
@@ -170,7 +158,7 @@ def main(args):
             print('Episode {}. Average reward {:.2f}'.format(
                 i_episode, average_reward))
             writer.add_scalar("Avg_return", average_reward, i_episode*args.agent_count*batch_size)
-        if i_episode * args.agent_count * batch_size > 2e6:
+        if i_episode * args.agent_count * batch_size > 1e7:
             break
 
 
@@ -188,7 +176,7 @@ if __name__ == '__main__':
                         help='number of agents (default: 100)')
     parser.add_argument('--gamma', type=float, default=0.995, metavar='G',
                         help='discount factor (default: 0.995)')
-    parser.add_argument('--env-name', default="Humanoid-v2", metavar='G',
+    parser.add_argument('--env-name', default="HalfCheetah-v2", metavar='G',
                         help='name of the environment to run')
     parser.add_argument('--tau', type=float, default=0.97, metavar='G',
                         help='gae (default: 0.97)')
@@ -225,5 +213,10 @@ if __name__ == '__main__':
 
     args.device = torch.device(args.device
                         if torch.cuda.is_available() else 'cpu')
-
+    args.agent_count = 100
+    args.batch_size = 1000
+    args.max_kl = 0.01
+    args.num_workers = 20
+    args.env_name = 'HalfCheetah-v2'
+    args.seed = 111
     main(args)

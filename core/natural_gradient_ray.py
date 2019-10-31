@@ -4,6 +4,7 @@ from torch.distributions.kl import kl_divergence
 from models import detach_distribution
 from torch import Tensor
 import ray
+from utils import *
 
 def cg(mvp, b, nsteps, residual_tol=1e-10):
     x = torch.zeros(b.size(), dtype=b.dtype)
@@ -24,7 +25,7 @@ def cg(mvp, b, nsteps, residual_tol=1e-10):
     return x
 
 @ray.remote
-def conjugate_gradient(policy_net, states, pg, max_kl=1e-3, cg_damping=1e-2, cg_iter = 10, pid=None):
+def conjugate_gradient(policy_net, states, pg, max_kl=1e-2, cg_damping=1e-2, cg_iter = 10, pid=None):
     for param in policy_net.parameters():
         param.requires_grad = True
 
@@ -67,3 +68,30 @@ def conjugate_gradient_parallel(policy_net, states_list, pg, max_kl=1e-3, cg_dam
         stepdirs[pid] = stepdir.numpy()
 
     return stepdirs
+
+def local_conjugate_gradient_parallel_and_line_search(trpo_loss, compute_kl, policy_net, states_list, advantages_list, actions_list, pg_list, max_kl=1e-3, cg_damping=1e-2, cg_iter=10, num_parallel_workers=mp.cpu_count()):
+    result_ids = []
+    for states, pg, index in zip(states_list, pg_list, range(len(states_list))):
+        result_ids.append(conjugate_gradient.remote(
+            policy_net, states, torch.from_numpy(pg), max_kl, cg_damping, cg_iter, index))
+
+    stepdirs = [None] * len(states_list)
+    for result_id in result_ids:
+        pid, stepdir = ray.get(result_id)
+        stepdirs[pid] = stepdir
+
+    #TODO to ray remote
+    prev_params = get_flat_params_from(policy_net)
+    xnews = []
+    for stepdir, states, actions, advantages in zip(stepdirs, states_list, actions_list, advantages_list):
+        loss = trpo_loss(advantages, states, actions, prev_params, prev_params).detach().numpy()
+        for (n_backtracks, stepfrac) in enumerate(0.5 ** np.arange(10)):
+            xnew = prev_params + stepfrac * stepdir
+            new_loss = trpo_loss(advantages, states, actions, prev_params, xnew).data.numpy()
+            kl = compute_kl(states, prev_params, xnew).detach().numpy()
+            # print(new_loss - fval, kl)
+            if new_loss - loss < 0 and kl < max_kl:
+                xnews.append(xnew.numpy())
+                break
+
+    return xnews

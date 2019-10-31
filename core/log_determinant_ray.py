@@ -1,11 +1,20 @@
 import numpy as np
+import ray
 import torch
 from torch.distributions.kl import kl_divergence
 from models import detach_distribution
+import os
 from torch.nn.utils.convert_parameters import parameters_to_vector, vector_to_parameters
 
 
-def _compute_log_determinant(mvp, num_trace, cheby_degree, l_min, l_max, matrix_dim):
+@ray.remote(num_gpus=.25)
+def _compute_log_determinant(pid, policy_net, states, num_trace, cheby_degree, l_min, eigen_amp, matrix_dim, device='cpu', damping=1e-2):
+    # print("ray.get_gpu_ids(): {}".format(ray.get_gpu_ids()))
+    # print("CUDA_VISIBLE_DEVICES: {}".format(os.environ["CUDA_VISIBLE_DEVICES"]))
+    # print(torch.cuda.is_available())
+    # torch.tensor(1).to('cuda: 0')
+    mvp = _fvsp(policy_net, states, damping=damping, device=device)
+    l_max = estimate_largest_eigenvalue(mvp, matrix_dim) * eigen_amp
     a = l_min+l_max
     delta = l_min / a
     mvp_scale = lambda x: mvp(x)/a
@@ -37,7 +46,7 @@ def _compute_log_determinant(mvp, num_trace, cheby_degree, l_min, l_max, matrix_
 
     ld = np.sum(np.sum(v*u))/num_trace + matrix_dim*np.log(a)
 
-    return ld
+    return pid, ld
 
 
 def chebyshev_poly_weights(f, cheby_degree):
@@ -101,19 +110,25 @@ def estimate_largest_eigenvalue(mvp, matrix_dim, power_iteration_count=100):
 def compute_log_determinant(policy_net, states_list, matrix_dim, damping=1e-2, num_trace=40, cheby_degree = 100, eigen_amp = 1, device='cpu'):
     num_workers = len(states_list)
     result_ids = []
-    log_determinant = []
+    log_determinant = [None]*num_workers
+    # print(torch.cuda.current_device())
     policy_net = policy_net.to(device)
-    for states, index in zip(states_list, range(num_workers)):
+    for states, pid in zip(states_list, range(num_workers)):
         states = states.to(device)
-        fvsp = _fvsp(policy_net, states, damping=damping, device=device)
         l_min = damping
-        # print("estimating largest eigenvalue")
-        l_max = estimate_largest_eigenvalue(fvsp, matrix_dim)*eigen_amp
-        # print(l_max)
-        # print("computing log determinant")
-        log_det = _compute_log_determinant(fvsp, num_trace, cheby_degree, l_min, l_max, matrix_dim)
-        log_determinant.append(log_det)
-        print("\t Finishing {}/{} log dets.".format(index+1, num_workers))
+        result_id = _compute_log_determinant.remote(pid, policy_net, states, num_trace, cheby_degree, l_min, eigen_amp, matrix_dim, device, damping=damping)
+        result_ids.append(result_id)
+        # result_id = compute_log_determinant.remote(pid, fvsp, num_trace, cheby_degree*2, l_min, l_max, matrix_dim)
+        # result_ids.append(result_id)
+        # result_id = compute_log_determinant.remote(pid, fvsp, num_trace, cheby_degree*4, l_min, l_max, matrix_dim)
+        # result_ids.append(result_id)
+        # result_id = compute_log_determinant.remote(pid, fvsp, num_trace, cheby_degree*8, l_min, l_max, matrix_dim)
+        # result_ids.append(result_id)
+
+    for result_id in result_ids:
+        pid, log_det = ray.get(result_id)
+        # print(log_det)
+        log_determinant[pid] = log_det
 
     policy_net = policy_net.to('cpu')
 
