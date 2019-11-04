@@ -4,7 +4,7 @@ import ray
 from core.running_state import ZFilter
 
 
-@ray.remote(num_gpus=1, max_calls=1)
+@ray.remote(num_gpus=1)
 def collect_samples(pid, env, policy, custom_reward,
                     mean_action, render, running_state, min_batch_size):
     torch.tensor(1).to('cuda')

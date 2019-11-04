@@ -22,7 +22,7 @@ def cg(mvp, b, nsteps, residual_tol=1e-10):
             break
     return x
 
-@ray.remote(num_gpus=1, max_calls=1)
+@ray.remote(num_gpus=1)
 def conjugate_gradient(policy_net, states, pg, max_kl=1e-2, cg_damping=1e-2, cg_iter = 10, pid=None):
     torch.tensor(1).to('cuda')
 

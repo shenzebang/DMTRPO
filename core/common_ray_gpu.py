@@ -4,7 +4,7 @@ import numpy as np
 import multiprocessing as mp
 import ray
 
-@ray.remote(num_gpus=1, max_calls=1)
+@ray.remote(num_gpus=1)
 def estimate_advantages(memory, value_net, gamma, tau, device='cpu', dtype=torch.double, pid=None):
     torch.tensor(1).to('cuda')
 
