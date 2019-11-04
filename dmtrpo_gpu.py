@@ -246,7 +246,4 @@ if __name__ == '__main__':
                         if torch.cuda.is_available() else 'cpu')
 
     args.gpus = args.gpus if args.device == 'cuda' and torch.cuda.is_available() else 0
-    args.count_agent = 8
-    args.hidden_size = 8
-    args.num_gpus = 4
     main(args)
