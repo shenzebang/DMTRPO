@@ -11,9 +11,9 @@ def _compute_kl(policy_net, states):
     kl = torch.mean(kl_divergence(pi_detach, pi))
     return kl
 
-def _compute_log_determinant(policy_net, states, matrix_dim, damping = 1e-2):
+def _compute_log_determinant(policy_net, states, matrix_dim, damping = 1e-2, device='cpu'):
     kl = _compute_kl(policy_net, states)
-    Hmatrix = hessian(kl, policy_net.parameters()) + torch.eye(matrix_dim)*damping
+    Hmatrix = hessian(kl, policy_net.parameters()) + torch.eye(matrix_dim).to(device).double()*damping
     l = torch.cholesky(Hmatrix)
     log_det_exact = 2 * l.diagonal(dim1=-2, dim2=-1).log().sum(-1)
     return log_det_exact
@@ -31,7 +31,8 @@ def compute_log_determinant(policy_net, states_list, matrix_dim, damping=1e-2, n
             policy_net=policy_net,
             states=states,
             matrix_dim=matrix_dim,
-            damping=damping
+            damping=damping,
+            device=device
         )
         log_determinant.append(log_det.to('cpu'))
         # print("\t Finishing {}/{} log dets.".format(index+1, num_workers))
