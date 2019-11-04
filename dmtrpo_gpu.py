@@ -37,7 +37,7 @@ torch.set_default_tensor_type('torch.DoubleTensor')
 
 def main(args):
     ray.init(num_cpus=args.num_workers, num_gpus=args.num_gpus)
-    @ray.remote(num_gpus=1, max_calls=1)
+    @ray.remote(num_gpus=1)
     def ray_init_gpu(device):
         return torch.tensor(1).to(device)
 
@@ -132,7 +132,7 @@ def main(args):
         for log_determinant, agent_id in zip(log_determinants, range(args.agent_count)):
             print("\t normalized log det for agent {} is {}".format(agent_id, log_determinant - log_determinants_mean))
         normalized_log_determinants = np.array(log_determinants) - log_determinants_mean
-        normalized_determinants = np.exp(normalized_log_determinants/5)
+        normalized_determinants = np.exp(normalized_log_determinants)
         time_log_det = time() - time_begin
         print('Episode {}. Computing the log determinants of Fisher matrices is done, using time {}'
               .format(i_episode, time_log_det))
@@ -233,7 +233,7 @@ if __name__ == '__main__':
                         help='render the environment')
     parser.add_argument('--log-interval', type=int, default=1, metavar='N',
                         help='interval between training status logs (default: 10)')
-    parser.add_argument('--device', type=str, default='cpu',
+    parser.add_argument('--device', type=str, default='cuda',
                         help='set the device (cpu or cuda)')
     parser.add_argument('--num-workers', type=int, default=4,
                         help='number of workers for parallel computing')
@@ -246,5 +246,4 @@ if __name__ == '__main__':
                         if torch.cuda.is_available() else 'cpu')
 
     args.gpus = args.gpus if args.device == 'cuda' and torch.cuda.is_available() else 0
-
     main(args)
