@@ -130,7 +130,10 @@ def main(args):
         for log_determinant, agent_id in zip(log_determinants, range(args.agent_count)):
             print("\t normalized log det for agent {} is {}".format(agent_id, log_determinant - log_determinants_mean))
         normalized_log_determinants = np.array(log_determinants) - log_determinants_mean
-        normalized_determinants = np.exp(normalized_log_determinants/5)
+        normalized_log_determinants_std = np.std(normalized_log_determinants)
+        print('Episode {}. Std of the log determinants {}'
+              .format(i_episode, normalized_log_determinants_std))
+        normalized_determinants = np.exp(normalized_log_determinants)
         time_log_det = time() - time_begin
         print('Episode {}. Computing the log determinants of Fisher matrices is done, using time {}'
               .format(i_episode, time_log_det))
@@ -185,7 +188,7 @@ def main(args):
             print('Episode {}. Average reward {:.2f}'.format(
                 i_episode, average_reward))
             writer.add_scalar("Avg_return", average_reward, i_episode*args.agent_count*batch_size)
-        if i_episode * args.agent_count * batch_size > 2e6:
+        if i_episode * args.agent_count * batch_size > 1e8:
             break
 
 
