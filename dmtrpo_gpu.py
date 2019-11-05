@@ -37,7 +37,7 @@ torch.set_default_tensor_type('torch.DoubleTensor')
 
 def main(args):
     ray.init(num_cpus=args.num_workers, num_gpus=args.num_gpus)
-    @ray.remote(num_gpus=1, max_calls=1)
+    @ray.remote(num_gpus=1)
     def ray_init_gpu(device):
         return torch.tensor(1).to(device)
 
@@ -64,7 +64,7 @@ def main(args):
     batch_size = args.batch_size
     running_state = ZFilter((env.observation_space.shape[0],), clip=5)
 
-    algo = "dmtrpo"
+    algo = "dmtrpo_gpu"
     logdir = "./algo_{}/env_{}/batchsize_{}_nworkers_{}_seed_{}_time{}".format(algo, str(args.env_name), batch_size, args.agent_count, args.seed, time())
     writer = SummaryWriter(logdir)
 
@@ -132,7 +132,7 @@ def main(args):
         for log_determinant, agent_id in zip(log_determinants, range(args.agent_count)):
             print("\t normalized log det for agent {} is {}".format(agent_id, log_determinant - log_determinants_mean))
         normalized_log_determinants = np.array(log_determinants) - log_determinants_mean
-        normalized_determinants = np.exp(normalized_log_determinants/5)
+        normalized_determinants = np.exp(normalized_log_determinants)
         time_log_det = time() - time_begin
         print('Episode {}. Computing the log determinants of Fisher matrices is done, using time {}'
               .format(i_episode, time_log_det))
@@ -167,7 +167,7 @@ def main(args):
             new_loss = np.array(new_losses).mean()
             kl = np.array(kls).mean()
             # print(new_loss - fval, kl)
-            if new_loss - fval < 0 and kl < 0.01:
+            if new_loss - fval < 0 and kl < args.max_kl:
                 set_flat_params_to(policy_net, xnew)
                 writer.add_scalar("n_backtracks", n_backtracks, i_episode)
                 ls_flag = True
@@ -187,7 +187,7 @@ def main(args):
             print('Episode {}. Average reward {:.2f}'.format(
                 i_episode, average_reward))
             writer.add_scalar("Avg_return", average_reward, i_episode*args.agent_count*batch_size)
-        if i_episode * args.agent_count * batch_size > 2e6:
+        if i_episode  > 100:
             break
 
 
@@ -233,7 +233,7 @@ if __name__ == '__main__':
                         help='render the environment')
     parser.add_argument('--log-interval', type=int, default=1, metavar='N',
                         help='interval between training status logs (default: 10)')
-    parser.add_argument('--device', type=str, default='cpu',
+    parser.add_argument('--device', type=str, default='cuda',
                         help='set the device (cpu or cuda)')
     parser.add_argument('--num-workers', type=int, default=4,
                         help='number of workers for parallel computing')
@@ -246,5 +246,4 @@ if __name__ == '__main__':
                         if torch.cuda.is_available() else 'cpu')
 
     args.gpus = args.gpus if args.device == 'cuda' and torch.cuda.is_available() else 0
-
     main(args)

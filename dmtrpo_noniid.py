@@ -127,7 +127,7 @@ def main(args):
         # for log_determinant, agent_id in zip(log_determinants, range(args.agent_count)):
         #     print("\t normalized log det for agent {} is {}".format(agent_id, log_determinant - log_determinants_mean))
         normalized_log_determinants = np.array(log_determinants) - log_determinants_mean
-        normalized_determinants = np.exp(normalized_log_determinants/5)
+        normalized_determinants = np.exp(normalized_log_determinants)
         time_log_det = time() - time_begin
         print('Episode {}. Computing the log determinants of Fisher matrices is done, using time {}'
               .format(i_episode, time_log_det))
@@ -162,7 +162,7 @@ def main(args):
             new_loss = np.array(new_losses).mean()
             kl = np.array(kls).mean()
             # print(new_loss - fval, kl)
-            if new_loss - fval < 0 and kl < 0.01:
+            if new_loss - fval < 0 and kl < args.max_kl:
                 set_flat_params_to(policy_net, xnew)
                 writer.add_scalar("n_backtracks", n_backtracks, i_episode)
                 ls_flag = True

@@ -155,7 +155,7 @@ def main(args):
         d_dm_trpo = torch.norm(dm_fullstep - trpo_fullstep).numpy()/np.linalg.norm(trpo_fullstep)
         d_hm_trpo = torch.norm(hm_fullstep - trpo_fullstep).numpy()/np.linalg.norm(trpo_fullstep)
         d_dm_hm = torch.norm(hm_fullstep - dm_fullstep).numpy()/np.linalg.norm(trpo_fullstep)
-        print("error before line search: ", d_hm_trpo, d_dm_trpo, d_dm_hm)
+        print("error before line search: ", 'TRPO and HMTRPO:{:.2f}, TRPO and DMTRPO:{:.2f}, HMTRPO and DMTRPO:{:.2f}'.format(d_hm_trpo, d_dm_trpo, d_dm_hm))
         writer.add_scalar('dm_hm_before', d_dm_hm, i_episode)
         writer.add_scalar('dm_trpo_before', d_dm_trpo, i_episode)
         writer.add_scalar('hm_trpo_before', d_hm_trpo, i_episode)
@@ -218,7 +218,7 @@ def main(args):
         d_hm_trpo = torch.norm(hm_dir - trpo_dir).numpy()/np.linalg.norm(trpo_dir)
         d_dm_hm = torch.norm(hm_dir - dm_dir).numpy()/np.linalg.norm(trpo_dir)
 
-        print("error after line search: ", 'TRPO and HMTRPO:{:.2f}, TRPO and DMTRPO:{:.2f}, HMTRPO and DMTRPO:{:2f}'.format(d_hm_trpo, d_dm_trpo, d_dm_hm))
+        print("error after line search: ", 'TRPO and HMTRPO:{:.2f}, TRPO and DMTRPO:{:.2f}, HMTRPO and DMTRPO:{:.2f}'.format(d_hm_trpo, d_dm_trpo, d_dm_hm))
         writer.add_scalar('dm_hm', d_dm_hm, i_episode)
         writer.add_scalar('dm_trpo', d_dm_trpo, i_episode)
         writer.add_scalar('hm_trpo', d_hm_trpo, i_episode)

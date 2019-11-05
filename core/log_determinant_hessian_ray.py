@@ -14,7 +14,7 @@ def _compute_kl(policy_net, states):
     return kl
 
 
-@ray.remote(num_gpus=1, max_calls=1)
+@ray.remote(num_gpus=1)
 def _compute_log_determinant(pid, policy_net, states, matrix_dim, damping=1e-2, device='cpu'):
     kl = _compute_kl(policy_net, states)
     Hmatrix = hessian(kl, policy_net.parameters()) + torch.eye(matrix_dim).to(device).double()*damping

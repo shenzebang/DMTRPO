@@ -138,7 +138,7 @@ def main(args):
             new_loss = np.array(new_losses).mean()
             kl = np.array(kls).mean()
             # print(new_loss - fval, kl)
-            if new_loss - fval < 0 and kl < 0.01:
+            if new_loss - fval < 0 and kl < args.max_kl:
                 set_flat_params_to(policy_net, xnew)
                 writer.add_scalar("n_backtracks", n_backtracks, i_episode)
                 ls_flag = True
