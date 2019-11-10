@@ -10,19 +10,18 @@ from torch.autograd import Variable
 from torch import Tensor
 import torch.tensor as tensor
 # from core.agent import AgentCollection
-from core.agent_ray_gpu import AgentCollection
+from core.agent_ray import AgentCollection
 from utils.utils import *
 from core.running_state import ZFilter
 # from core.common import estimate_advantages_parallel
-from core.common_ray_gpu import estimate_advantages_parallel
+from core.common_ray import estimate_advantages_parallel
 from torch.nn.utils.convert_parameters import parameters_to_vector, vector_to_parameters
 import numpy as np
 from torch.distributions.kl import kl_divergence
 # from core.natural_gradient import conjugate_gradient_parallel
-from core.natural_gradient_ray_gpu import conjugate_gradient_parallel
-from core.policy_gradient_gpu import compute_policy_gradient_parallel
-from core.log_determinant_hessian_ray import compute_log_determinant
-from core.natural_gradient_ray import conjugate_gradient_global
+from core.natural_gradient_ray_non_scale import conjugate_gradient_parallel, conjugate_gradient_global
+from core.policy_gradient import compute_policy_gradient_parallel
+from core.log_determinant_hessian import compute_log_determinant
 
 # from envs.mujoco.half_cheetah import HalfCheetahVelEnv_FL
 import ray
@@ -38,15 +37,7 @@ torch.set_default_tensor_type('torch.DoubleTensor')
 
 
 def main(args):
-    ray.init(num_cpus=args.num_workers, num_gpus=args.num_gpus)
-    @ray.remote(num_gpus=1)
-    def ray_init_gpu(device):
-        return torch.tensor(1).to(device)
-
-    init_id = ray_init_gpu.remote(args.device)
-    one_device = ray.get(init_id)
-    print(one_device)
-
+    ray.init(num_cpus=args.num_workers)
     dtype = torch.double
     torch.set_default_dtype(dtype)
     env = gym.make(args.env_name)
@@ -131,10 +122,13 @@ def main(args):
                                                    device=args.device)
         # log_determinants = np.ones(args.agent_count)
         log_determinants_mean = np.array(log_determinants).mean()
-        for log_determinant, agent_id in zip(log_determinants, range(args.agent_count)):
-            print("\t normalized log det for agent {} is {}".format(agent_id, log_determinant - log_determinants_mean))
+        # for log_determinant, agent_id in zip(log_determinants, range(args.agent_count)):
+            # print("\t normalized log det for agent {} is {}".format(agent_id, log_determinant - log_determinants_mean))
         normalized_log_determinants = np.array(log_determinants) - log_determinants_mean
         normalized_determinants = np.exp(normalized_log_determinants)
+        normalized_log_determinants_std = np.std(normalized_log_determinants)
+        print('Episode {}. Std of the log determinants {}'
+              .format(i_episode, normalized_log_determinants_std))
         time_log_det = time() - time_begin
         print('Episode {}. Computing the log determinants of Fisher matrices is done, using time {}'
               .format(i_episode, time_log_det))
@@ -154,22 +148,23 @@ def main(args):
         time_ng = time() - time_begin
         d_dm_trpo = torch.norm(dm_fullstep - trpo_fullstep).numpy()/np.linalg.norm(trpo_fullstep)
         d_hm_trpo = torch.norm(hm_fullstep - trpo_fullstep).numpy()/np.linalg.norm(trpo_fullstep)
-        d_dm_hm = torch.norm(hm_fullstep - dm_fullstep).numpy()/np.linalg.norm(trpo_fullstep)
-        print("error before line search: ", 'TRPO and HMTRPO:{:.2f}, TRPO and DMTRPO:{:.2f}, HMTRPO and DMTRPO:{:.2f}'.format(d_hm_trpo, d_dm_trpo, d_dm_hm))
-        writer.add_scalar('dm_hm_before', d_dm_hm, i_episode)
+        # d_dm_hm = torch.norm(hm_fullstep - dm_fullstep).numpy()/np.linalg.norm(trpo_fullstep)
+        print("error before line search: ", 'TRPO and HMTRPO:{}, TRPO and DMTRPO:{}'.format(d_hm_trpo, d_dm_trpo))
+        # writer.add_scalar('dm_hm_before', d_dm_hm, i_episode)
         writer.add_scalar('dm_trpo_before', d_dm_trpo, i_episode)
         writer.add_scalar('hm_trpo_before', d_hm_trpo, i_episode)
         print('Episode {}. Computing the directions is done, using time {}'
               .format(i_episode, time_ng))
 
         # Linear Search
-        # dm
         print('Episode {}. Linear search...'.format(i_episode))
+        time_begin = time()
         prev_params = get_flat_params_from(policy_net)
         for advantages, states, actions in zip(advantages_list, states_list, actions_list):
             losses.append(trpo_loss(advantages, states, actions, prev_params, prev_params).detach().numpy())
         fval = np.array(losses).mean()
 
+        ls_flag = False
         for (n_backtracks, stepfrac) in enumerate(0.5 ** np.arange(10)):
             new_losses = []
             kls = []
@@ -181,47 +176,17 @@ def main(args):
             kl = np.array(kls).mean()
             # print(new_loss - fval, kl)
             if new_loss - fval < 0 and kl < args.max_kl:
-                dm_dir = stepfrac * dm_fullstep
+                set_flat_params_to(policy_net, xnew)
+                writer.add_scalar("n_backtracks", n_backtracks, i_episode)
+                ls_flag = True
                 break
-        # hm
-        for (n_backtracks, stepfrac) in enumerate(0.5 ** np.arange(10)):
-            new_losses = []
-            kls = []
-            xnew = prev_params + stepfrac * hm_fullstep
-            for advantages, states, actions in zip(advantages_list, states_list, actions_list):
-                new_losses.append(trpo_loss(advantages, states, actions, prev_params, xnew).data)
-                kls.append(compute_kl(states, prev_params, xnew).detach().numpy())
-            new_loss = np.array(new_losses).mean()
-            kl = np.array(kls).mean()
-            # print(new_loss - fval, kl)
-            if new_loss - fval < 0 and kl < args.max_kl:
-                hm_dir = stepfrac * hm_fullstep
-                break
-        # trpo
-        for (n_backtracks, stepfrac) in enumerate(0.5 ** np.arange(10)):
-            new_losses = []
-            kls = []
-            xnew = prev_params + stepfrac * trpo_fullstep
-            for advantages, states, actions in zip(advantages_list, states_list, actions_list):
-                new_losses.append(trpo_loss(advantages, states, actions, prev_params, xnew).data)
-                kls.append(compute_kl(states, prev_params, xnew).detach().numpy())
-            new_loss = np.array(new_losses).mean()
-            kl = np.array(kls).mean()
-            # print(new_loss - fval, kl)
-            if new_loss - fval < 0 and kl < args.max_kl:
-                updated_params = xnew
-                trpo_dir = stepfrac * trpo_fullstep
-                break
-
-        set_flat_params_to(policy_net, updated_params)
-        d_dm_trpo = torch.norm(dm_dir - trpo_dir).numpy()/np.linalg.norm(trpo_dir)
-        d_hm_trpo = torch.norm(hm_dir - trpo_dir).numpy()/np.linalg.norm(trpo_dir)
-        d_dm_hm = torch.norm(hm_dir - dm_dir).numpy()/np.linalg.norm(trpo_dir)
-
-        print("error after line search: ", 'TRPO and HMTRPO:{:.2f}, TRPO and DMTRPO:{:.2f}, HMTRPO and DMTRPO:{:.2f}'.format(d_hm_trpo, d_dm_trpo, d_dm_hm))
-        writer.add_scalar('dm_hm', d_dm_hm, i_episode)
-        writer.add_scalar('dm_trpo', d_dm_trpo, i_episode)
-        writer.add_scalar('hm_trpo', d_hm_trpo, i_episode)
+        time_ls = time() - time_begin
+        if ls_flag:
+            print('Episode {}. Linear search is done in {} steps, using time {}'
+                  .format(i_episode, n_backtracks, time_ls))
+        else:
+            print('Episode {}. Linear search is done but failed, using time {}'
+                  .format(i_episode, time_ls))
 
         rewards = [log['avg_reward'] for log in logs]
         average_reward = np.array(rewards).mean()
