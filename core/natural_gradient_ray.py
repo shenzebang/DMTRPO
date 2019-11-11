@@ -4,8 +4,8 @@ from core.models import detach_distribution
 import ray
 from utils.utils import *
 
-def cg(mvp, b, nsteps, residual_tol=1e-10):
-    x = torch.zeros(b.size(), dtype=b.dtype)
+def cg(mvp, b, nsteps, residual_tol=1e-10, device='cpu'):
+    x = torch.zeros(b.size(), dtype=b.dtype).to(device)
     r = b.clone()
     p = b.clone()
     rdotr = torch.dot(r, r)
@@ -94,13 +94,15 @@ def local_conjugate_gradient_parallel_and_line_search(trpo_loss, compute_kl, pol
 
     return xnews
 
-def conjugate_gradient_global(policy_net, states_list, pg, max_kl=1e-2, cg_damping=1e-2, cg_iter=10):
-    states = torch.cat(states_list)
-    for param in policy_net.parameters():
-        param.requires_grad = True
-    def _fvp(states, damping=1e-2):
-        def __fvp(vector, damping=damping):
-            pi = policy_net(states)
+
+def conjugate_gradient_global(policy_net, states_list, pg, max_kl=1e-2, cg_damping=1e-2, cg_iter=10, device='cpu'):
+    states = torch.cat(states_list).to(device)
+    pg = pg.to(device)
+    policy_net = policy_net.to(device)
+
+    def _fvp(_fvp_states, damping=1e-2):
+        def __fvp(vector, __fvp_damping=damping):
+            pi = policy_net(_fvp_states)
             pi_detach = detach_distribution(pi)
             kl = torch.mean(kl_divergence(pi_detach, pi))
 
@@ -111,14 +113,15 @@ def conjugate_gradient_global(policy_net, states_list, pg, max_kl=1e-2, cg_dampi
             grads = torch.autograd.grad(kl_v, policy_net.parameters())
             flat_grad_grad_kl = torch.cat([grad.view(-1) for grad in grads])
 
-            return flat_grad_grad_kl + vector * damping
+            return flat_grad_grad_kl + vector * __fvp_damping
 
         return __fvp
 
     fvp = _fvp(states, damping=cg_damping)
-    stepdir = cg(fvp, -pg, cg_iter)
+    stepdir = cg(fvp, -pg, cg_iter, device=device)
     shs = 0.5 * (stepdir * fvp(stepdir)).sum(0, keepdim=True)
     lm = torch.sqrt(shs / max_kl)
     fullstep = stepdir / lm[0]
 
-    return fullstep
+    policy_net = policy_net.to('cpu')
+    return fullstep.to('cpu')

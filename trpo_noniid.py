@@ -36,7 +36,7 @@ def main(args):
     num_actions = dummy_env.action_space.shape[0]
     #env.seed(args.seed)
     torch.manual_seed(args.seed)
-    policy_net = Policy(num_inputs, num_actions, hidden_sizes = (args.hidden_size,) * args.num_layers)
+    policy_net = Policy(num_inputs, num_actions, hidden_sizes = (args.hidden_size,) * args.num_layers, init_std=2e0)
     print("Network structure:")
     for name, param in policy_net.named_parameters():
         print("name: {}, size: {}".format(name, param.size()[0]))
@@ -47,7 +47,7 @@ def main(args):
     batch_size = args.batch_size
     running_state = ZFilter((num_inputs,), clip=5)
 
-    algo = "hmtrpo_FL"
+    algo = "TRPO"
     logdir = "./algo_{}/env_{}/batchsize_{}_nworkers_{}_seed_{}_time{}".format(algo, str(args.env_name), batch_size, args.agent_count, args.seed, time())
     writer = SummaryWriter(logdir)
 
@@ -106,9 +106,19 @@ def main(args):
 
         # Computing Conjugate Gradient
         print('Episode {}. Computing the harmonic mean of natural gradient directions...'.format(i_episode))
-        fullstep = conjugate_gradient_global(policy_net, states_list, pg,
-                                               args.max_kl, args.cg_damping, args.cg_iter)
-
+        time_begin = time()
+        fullstep = conjugate_gradient_global(
+            policy_net=policy_net,
+            states_list=states_list,
+            pg=pg,
+            max_kl=args.max_kl,
+            cg_damping=args.cg_damping,
+            cg_iter=args.cg_iter,
+            device=args.device
+        )
+        time_ng = time() - time_begin
+        print('Episode {}. Computing the harmonic mean of natural gradient directions is done, using time {}'
+              .format(i_episode, time_ng))
 
         # Linear Search
         print('Episode {}. Linear search...'.format(i_episode))

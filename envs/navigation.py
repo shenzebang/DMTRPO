@@ -94,7 +94,7 @@ class Navigation2DEnv_FL(gym.Env):
         x = self._state[0]
         y = self._state[1]
         speed = np.dot(action, action)
-        reward = -np.sqrt(x ** 2 + y ** 2)**2 - speed*0.1
+        reward = -np.sqrt(x ** 2 + y ** 2)**2 - speed*1
         done = ((np.abs(x) < 0.01) and (np.abs(y) < 0.01))
         if done:
             print("done")
