@@ -11,7 +11,7 @@ from core.agent_noniid import AgentCollection
 from utils.utils import *
 from core.running_state import ZFilter
 # from core.common import estimate_advantages_parallel
-from core.common_ray import estimate_advantages_parallel_noniid
+from core.common_ray_navi import estimate_advantages_parallel_noniid
 from torch.nn.utils.convert_parameters import parameters_to_vector, vector_to_parameters
 import numpy as np
 from torch.distributions.kl import kl_divergence
@@ -36,7 +36,8 @@ def main(args):
     num_actions = dummy_env.action_space.shape[0]
     #env.seed(args.seed)
     torch.manual_seed(args.seed)
-    policy_net = Policy(num_inputs, num_actions, hidden_sizes = (args.hidden_size,) * args.num_layers, init_std=2e0)
+    policy_net = Policy(num_inputs, num_actions, hidden_sizes = (args.hidden_size,) * args.num_layers, init_std=.5)
+    # print('Episode 0. Policy std {}'.format(torch.exp(policy_net.sigma).data))
     print("Network structure:")
     for name, param in policy_net.named_parameters():
         print("name: {}, size: {}".format(name, param.size()[0]))
@@ -77,6 +78,11 @@ def main(args):
         return kl
 
     for i_episode in count(1):
+        # print('Episode {}. Policy std {}'.format(i_episode, torch.exp(policy_net.sigma).data))
+        # print('Episode {}. input (5, 5), Policy mean {}'.format(i_episode, policy_net(torch.tensor([5.0, 5.0])).loc.data))
+        # print('Episode {}. input (-5, 5), Policy mean {}'.format(i_episode, policy_net(torch.tensor([-5.0, 5.0])).loc.data))
+        # print('Episode {}. input (5, -5), Policy mean {}'.format(i_episode, policy_net(torch.tensor([5.0, -5.0])).loc.data))
+        # print('Episode {}. input (-5, -5), Policy mean {}'.format(i_episode, policy_net(torch.tensor([-5.0, -5.0])).loc.data))
         losses = []
         # Sample Trajectories
         print('Episode {}. Sampling trajectories...'.format(i_episode))

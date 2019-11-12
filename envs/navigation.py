@@ -83,21 +83,31 @@ class Navigation2DEnv_FL(gym.Env):
             shape=(2,), dtype=np.float32)
 
         self.goal = np.random.uniform(-5, 5, size=(2,))
+        self.goal = self.goal/np.linalg.norm(self.goal)*5
 
     def reset(self, env=True):
         self._state = np.zeros(2, dtype=np.float32) - self.goal
         return self._state
 
     def step(self, action):
+        reward = -np.dot(self._state, action)/np.linalg.norm(self._state)/np.linalg.norm(action)
         self._state = self._state + action
         assert self.action_space.contains(action)
         x = self._state[0]
         y = self._state[1]
         speed = np.dot(action, action)
-        reward = -np.sqrt(x ** 2 + y ** 2)**2 - speed*1
-        done = ((np.abs(x) < 0.01) and (np.abs(y) < 0.01))
-        if done:
-            print("done")
+        distance = x ** 2 + y ** 2
+        # if distance > 1:
+        #     reward = -np.log(distance/4) - speed*.5
+        # else:
+        #     reward = -np.log(distance/8) - speed * .5
+        reward = reward - speed * .5 -np.log(distance)
+        # reward =  - (x ** 2 + y ** 2) - speed*1
+        # done = ((np.abs(x) < 1) and (np.abs(y) < 1))
+        done = np.linalg.norm(self._state)<.1
+        # if done:
+            # print(self._state)
+            # print("done")
         return self._state, reward, done, {}
 
     def render(self):

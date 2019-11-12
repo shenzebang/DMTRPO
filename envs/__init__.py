@@ -49,5 +49,5 @@ register(
 register(
     '2DNavigation-v1',
     entry_point='envs.navigation:Navigation2DEnv_FL',
-    max_episode_steps=200
+    max_episode_steps=100
 )

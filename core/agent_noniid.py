@@ -81,7 +81,7 @@ def collect_samples(pid, env, policy, custom_reward,
 @ray.remote
 def collect_samples_noniid(pid, env, policy, custom_reward, bias,
                     mean_action, render, use_running_state, min_batch_size, add_bias):
-
+    max_episode_steps = env.spec.max_episode_steps
     torch.randn(pid)
     log = dict()
     memory = Memory()
@@ -94,12 +94,12 @@ def collect_samples_noniid(pid, env, policy, custom_reward, bias,
     max_c_reward = -1e6
     num_episodes = 0
     running_state = ZFilter((env.observation_space.shape[0],), clip=5)
+    num_episodes_success = 0
     while num_steps < min_batch_size:
         state = env.reset()
         if use_running_state:
             state = running_state(state)
         reward_episode = 0
-
         for t in range(10000):
             state_var = tensor(state).unsqueeze(0)
             with torch.no_grad():
@@ -108,12 +108,14 @@ def collect_samples_noniid(pid, env, policy, custom_reward, bias,
                 else:
                     action = policy.select_action(state_var)[0].numpy()
             action = int(action) if policy.is_disc_action else action.astype(np.float64)
+            # if t == 0:
+            #     print(action)
             next_state, reward, done, _ = env.step(action)
             # added for non-iid environment
             if add_bias:
                 reward += bias
             reward_episode += reward
-            if running_state is not None:
+            if running_state is not None and use_running_state:
                 next_state = running_state(next_state)
 
             if custom_reward is not None:
@@ -133,6 +135,9 @@ def collect_samples_noniid(pid, env, policy, custom_reward, bias,
 
             state = next_state
 
+        if t+1 < max_episode_steps:
+            # print(t)
+            num_episodes_success += 1
         # log stats
         num_steps += (t + 1)
         num_episodes += 1
@@ -142,6 +147,8 @@ def collect_samples_noniid(pid, env, policy, custom_reward, bias,
 
     log['num_steps'] = num_steps
     log['num_episodes'] = num_episodes
+    log['num_episodes_success'] = num_episodes_success
+    # print(num_episodes_success)
     log['total_reward'] = total_reward
     log['avg_reward'] = total_reward / num_episodes
     log['max_reward'] = max_reward
@@ -219,13 +226,18 @@ class AgentCollection:
                            False, False, min_batch_size, add_bias))
         worker_logs = [None] * self.num_agents
         worker_memories = [None] * self.num_agents
+        total_episode = 0
         # print(len(result_ids))
+        num_episodes = 0
+        num_episodes_success = 0
         for result_id in result_ids:
             pid, worker_memory, worker_log = ray.get(result_id)
+            num_episodes += worker_log['num_episodes']
+            num_episodes_success += worker_log['num_episodes_success']
             worker_memories[pid] = worker_memory
             worker_logs[pid] = worker_log
 
-
+        print("\t success rate {}".format(num_episodes_success/num_episodes))
         to_device(self.device, self.policy)
         # log['action_mean'] = np.mean(np.vstack(batch.action), axis=0)
         # log['action_min'] = np.min(np.vstack(batch.action), axis=0)
