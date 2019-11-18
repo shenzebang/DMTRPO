@@ -1,5 +1,7 @@
 import torch
 from trpo_server import TRPOServer
+from hmtrpo_server import HMTRPOServer
+from localtrpo_server import LocalTRPOServer
 import pandas as pd
 from time import time
 import numpy as np
@@ -12,9 +14,15 @@ class Runner(object):
         self.plot = args.plot
         self.num_repeat = args.num_repeat
         self.args = args
-        assert args.algo in ['trpo', 'local_trpo', 'hmtrpo']
+        assert args.algo in ['trpo', 'localtrpo', 'hmtrpo']
         if args.algo == 'trpo':
             self.server = TRPOServer(args=args)
+        if args.algo == 'hmtrpo':
+            self.server = HMTRPOServer(args=args)
+        if args.algo == 'localtrpo':
+            self.server = LocalTRPOServer(args=args)
+
+
 
     def train(self):
         steps = []
@@ -85,7 +93,6 @@ if __name__ == '__main__':
 
     args.device = torch.device(args.device
                         if torch.cuda.is_available() else 'cpu')
-
     results = pd.DataFrame()
     ray.init(num_cpus=args.num_workers, num_gpus=1)
     for num_trial in range(args.num_repeat):

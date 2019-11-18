@@ -2,12 +2,48 @@ from utils2.replay_memory import Memory
 from utils2.torch import *
 import ray
 from core.running_state import ZFilter
-import gym
 import numpy as np
 from torch.nn.utils.convert_parameters import (vector_to_parameters,
                                                parameters_to_vector)
 from scipy import optimize
+from collections import OrderedDict
+from torch.distributions.kl import kl_divergence
 
+
+def _trpo_loss(actor, advantages, states, actions, flat_params=None, example_named_parameters=None):
+    # This is the negative trpo objective
+    if flat_params is None:
+        params = None
+    else:
+        prev_ind = 0
+        params = OrderedDict()
+        for name, example_param in example_named_parameters:
+            flat_size = int(np.prod(list(example_param.size())))
+            params[name] = flat_params[prev_ind:prev_ind + flat_size].view(example_param.size())
+            prev_ind += flat_size
+    with torch.no_grad():
+        log_prob_prev = actor.get_log_prob(states, actions)
+        log_prob_current = actor.get_log_prob(states, actions, params=params)
+        negative_trpo_objs = -advantages * torch.exp(log_prob_current - log_prob_prev)
+        negative_trpo_obj = negative_trpo_objs.mean()
+    return negative_trpo_obj
+
+
+def _compute_kl(actor, states, flat_params=None, example_named_parameters=None):
+    with torch.autograd.no_grad():
+        if flat_params is None:
+            params = None
+        else:
+            prev_ind = 0
+            params = OrderedDict()
+            for name, example_param in example_named_parameters:
+                flat_size = int(np.prod(list(example_param.size())))
+                params[name] = flat_params[prev_ind:prev_ind + flat_size].view(example_param.size())
+                prev_ind += flat_size
+        pi = actor(states)
+        pi_new = actor(states, params)
+        kl = torch.mean(kl_divergence(pi, pi_new))
+    return kl
 
 def _sample_memory(env, actor, min_batch_size, use_running_state):
     max_episode_steps = env._max_episode_steps
@@ -132,7 +168,7 @@ def _critic_update(critic, states, returns):
 
 
 @ray.remote
-def _map_i(pid, env, actor, critic, use_running_state, gamma, tau, dtype, min_batch_size):
+def _map_pg(pid, env, actor, critic, use_running_state, gamma, tau, dtype, min_batch_size):
     memory, log = _sample_memory(
         env=env,
         actor=actor,
@@ -179,12 +215,11 @@ class AgentCollection:
         self.actions_list = []
         self.log_list = []
         self.actor_gradient_list = []
-        self.critic_update_list = []
 
     def map_pg(self):
         result_ids = []
         for pid in range(self.num_agents):
-            result_id = _map_i.remote(
+            result_id = _map_pg.remote(
                 pid=pid,
                 env=self.envs[pid],
                 actor=self.actor,
@@ -205,7 +240,6 @@ class AgentCollection:
         self.actions_list = [None] * self.num_agents
         self.log_list = [None] * self.num_agents
         self.actor_gradient_list = [None] * self.num_agents
-        self.critic_update_list = [None] * self.num_agents
 
         for result_id in result_ids:
             pid, advantages, returns, states, actions, log, actor_gradient, critic_update = ray.get(result_id)
@@ -217,10 +251,34 @@ class AgentCollection:
             self.actions_list[pid] = actions
             self.log_list[pid] = log
             self.actor_gradient_list[pid] = actor_gradient.numpy()
-            self.critic_update_list[pid] = critic_update
+            vector_to_parameters(torch.from_numpy(critic_update), self.critics[pid].parameters())
 
         print("\t success rate {}".format(num_episodes_success / num_episodes))
 
-        return self.states_list, self.advantages_list, self.returns_list, \
-               self.actions_list, self.log_list, self.actor_gradient_list, \
-               self.critic_update_list
+        return self.states_list, self.log_list, self.actor_gradient_list
+
+    def trpo_loss(self, xnew=None):
+        new_losses = []
+        for advantages, states, actions in zip(self.advantages_list, self.states_list, self.actions_list):
+            new_losses.append(_trpo_loss(
+                self.actor,
+                advantages,
+                states,
+                actions,
+                flat_params=xnew,
+                example_named_parameters=self.actor.named_parameters()
+            ).detach().numpy())
+        new_loss = np.array(new_losses).mean()
+        return new_loss
+
+    def compute_kl(self, xnew=None):
+        kls = []
+        for states in self.states_list:
+            kls.append(_compute_kl(
+                self.actor,
+                states,
+                flat_params=xnew,
+                example_named_parameters=self.actor.named_parameters()
+            ).detach().numpy())
+        kl = np.array(kls).mean()
+        return kl

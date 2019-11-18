@@ -54,11 +54,25 @@ def conjugate_gradient(policy_net, states, pg, max_kl=1e-2, cg_damping=1e-2, cg_
     return (pid, fullstep)
 
 
-def conjugate_gradient_parallel(policy_net, states_list, pg, max_kl=1e-2, cg_damping=1e-2, cg_iter=10, num_parallel_workers=mp.cpu_count()):
+def conjugate_gradient_parallel(policy_net, states_list, pg_list, max_kl=1e-2, cg_damping=1e-2, cg_iter=10, device='cpu'):
+    pg = torch.from_numpy(np.array(pg_list).mean(axis=0))
     result_ids = []
     for states, index in zip(states_list, range(len(states_list))):
         result_ids.append(conjugate_gradient.remote(
             policy_net, states, pg, max_kl, cg_damping, cg_iter, index))
+
+    stepdirs = [None] * len(states_list)
+    for result_id in result_ids:
+        pid, stepdir = ray.get(result_id)
+        stepdirs[pid] = stepdir.numpy()
+
+    return stepdirs
+
+def local_conjugate_gradient_parallel(policy_net, states_list, pg_list, max_kl=1e-2, cg_damping=1e-2, cg_iter=10, num_parallel_workers=mp.cpu_count()):
+    result_ids = []
+    for states, pg, index in zip(states_list, pg_list, range(len(states_list))):
+        result_ids.append(conjugate_gradient.remote(
+            policy_net, states, torch.from_numpy(pg), max_kl, cg_damping, cg_iter, index))
 
     stepdirs = [None] * len(states_list)
     for result_id in result_ids:
@@ -95,8 +109,9 @@ def local_conjugate_gradient_parallel_and_line_search(trpo_loss, compute_kl, pol
     return xnews
 
 
-def conjugate_gradient_global(policy_net, states_list, pg, max_kl=1e-2, cg_damping=1e-2, cg_iter=10, device='cpu'):
+def conjugate_gradient_global(policy_net, states_list, pg_list, max_kl=1e-2, cg_damping=1e-2, cg_iter=10, device='cpu'):
     states = torch.cat(states_list).to(device)
+    pg = torch.from_numpy(np.array(pg_list).mean(axis=0))
     pg = pg.to(device)
     policy_net = policy_net.to(device)
 

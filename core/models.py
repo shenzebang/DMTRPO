@@ -52,8 +52,8 @@ class Policy(nn.Module):
 
         return Normal(loc=mu, scale=scale)
 
-    def get_log_prob(self, x, actions):
-        pi = self.forward(x)
+    def get_log_prob(self, x, actions, params=None):
+        pi = self.forward(x, params)
         return pi.log_prob(actions).sum(1, keepdim=True)
 
 

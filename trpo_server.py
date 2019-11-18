@@ -2,17 +2,11 @@ from time import time
 import gym
 import envs
 from tensorboardX import SummaryWriter
-
 from core.models import *
-
-from torch.autograd import Variable
 from core.agent import AgentCollection
 from utils.utils import *
 import numpy as np
-from torch.distributions.kl import kl_divergence
 from core.natural_gradient_ray import conjugate_gradient_global
-from torch.nn.utils.convert_parameters import vector_to_parameters
-import ray
 
 torch.utils.backcompat.broadcast_warning.enabled = True
 torch.utils.backcompat.keepdim_warning.enabled = True
@@ -48,90 +42,58 @@ class TRPOServer:
             dtype=dtype,
             use_running_state=args.use_running_state
         )
+        self.log_list = []
 
     def step(self, i_episode):
-        losses = []
-        def trpo_loss(advantages, states, actions, params, params_trpo_ls):
-            # This is the negative trpo objective
-            with torch.no_grad():
-                set_flat_params_to(self.actor, params)
-                log_prob_prev = self.actor.get_log_prob(states, actions)
-                set_flat_params_to(self.actor, params_trpo_ls)
-                log_prob_current = self.actor.get_log_prob(states, actions)
-                negative_trpo_objs = -advantages * torch.exp(log_prob_current - log_prob_prev)
-                negative_trpo_obj = negative_trpo_objs.mean()
-                set_flat_params_to(self.actor, params)
-            return negative_trpo_obj
-
-        def compute_kl(states, prev_params, xnew):
-            with torch.autograd.no_grad():
-                set_flat_params_to(self.actor, prev_params)
-                pi = self.actor(Variable(states))
-                set_flat_params_to(self.actor, xnew)
-                pi_new = self.actor(Variable(states))
-                set_flat_params_to(self.actor, prev_params)
-                kl = torch.mean(kl_divergence(pi, pi_new))
-            return kl
-
         print('Episode {}. map_pg...'.format(i_episode))
         time_begin = time()
-        states_list, advantages_list, returns_list, actions_list, log_list, actor_gradient_list, critic_update_list \
-            = self.agents.map_pg()
+        states_list, log_list, actor_gradient_list = self.agents.map_pg()
         self.log_list = log_list
         time_sample = time() - time_begin
         print('Episode {}. map_pg is done, using time {}.'.format(i_episode, time_sample))
 
-        actor_gradient_list = np.array(actor_gradient_list).mean(axis=0)
-        self.actor_gradient_average = torch.from_numpy(actor_gradient_list)
-        for params, critic in zip(critic_update_list, self.critics):
-            vector_to_parameters(torch.from_numpy(params), critic.parameters())
-
-
         print('Episode {}. map_cg...'.format(i_episode))
         time_begin = time()
-        natural_gradient_direction = self.conjugate_gradient(states_list)
+        natural_gradient_direction = self.conjugate_gradient(actor_gradient_list, states_list)
         time_ng = time() - time_begin
         print('Episode {}. map_cg is done, using time {}'
               .format(i_episode, time_ng))
 
-        # Linear Search
         print('Episode {}. Linear search...'.format(i_episode))
         time_begin = time()
-        prev_params = get_flat_params_from(self.actor)
-        for advantages, states, actions in zip(advantages_list, states_list, actions_list):
-            losses.append(trpo_loss(advantages, states, actions, prev_params, prev_params).detach().numpy())
-        fval = np.array(losses).mean()
-
-        ls_flag = False
-        for (n_backtracks, stepfrac) in enumerate(0.5 ** np.arange(10)):
-            new_losses = []
-            kls = []
-            xnew = prev_params + stepfrac * natural_gradient_direction
-            for advantages, states, actions in zip(advantages_list, states_list, actions_list):
-                new_losses.append(trpo_loss(advantages, states, actions, prev_params, xnew).data)
-                kls.append(compute_kl(states, prev_params, xnew).detach().numpy())
-            new_loss = np.array(new_losses).mean()
-            kl = np.array(kls).mean()
-            if new_loss - fval < 0 and kl < self.args.max_kl:
-                set_flat_params_to(self.actor, xnew)
-                self.writer.add_scalar("n_backtracks", n_backtracks, i_episode)
-                ls_flag = True
-                break
+        ls_flag, n_backtracks, xnew = self.line_search(i_episode, natural_gradient_direction)
+        set_flat_params_to(self.actor, xnew)
         time_ls = time() - time_begin
         if ls_flag:
-            print('Episode {}. Linear search is done in {} steps, using time {}'
+            print('Episode {}. Linear search succeeded in {} steps, using time {}'
                   .format(i_episode, n_backtracks, time_ls))
         else:
-            print('Episode {}. Linear search is done but failed, using time {}'
+            print('Episode {}. Linear search failed, using time {}'
                   .format(i_episode, time_ls))
 
         return self.log(i_episode)
 
-    def conjugate_gradient(self, states_list):
+    def line_search(self, i_episode, natural_gradient_direction):
+        prev_params = get_flat_params_from(self.actor)
+        xnew = prev_params
+        n_backtracks = 0
+        fval = self.agents.trpo_loss()
+        ls_flag = False
+        for (n_backtracks, stepfrac) in enumerate(0.5 ** np.arange(10)):
+            xnew = prev_params + stepfrac * natural_gradient_direction
+            new_loss = self.agents.trpo_loss(xnew)
+            kl = self.agents.compute_kl(xnew)
+            if new_loss - fval < 0 and kl < self.args.max_kl:
+                self.writer.add_scalar("n_backtracks", n_backtracks, i_episode)
+                ls_flag = True
+                break
+        return ls_flag, n_backtracks, xnew
+
+    def conjugate_gradient(self, actor_gradient_list, states_list):
         conjugate_gradient_direction = conjugate_gradient_global(
             policy_net=self.actor,
             states_list=states_list,
-            pg=self.actor_gradient_average,
+            pg_list=actor_gradient_list,
             max_kl=self.args.max_kl,
             cg_damping=self.args.cg_damping,
             cg_iter=self.args.cg_iter,
