@@ -21,7 +21,6 @@ torch.set_default_tensor_type('torch.DoubleTensor')
 
 class TRPOServer:
     def __init__(self, args, dtype=torch.double):
-        ray.init(num_cpus=args.num_workers, num_gpus=1)
         torch.set_default_dtype(dtype)
         dummy_env = gym.make(args.env_name)
         num_inputs = dummy_env.observation_space.shape[0]
@@ -113,7 +112,7 @@ class TRPOServer:
                 kls.append(compute_kl(states, prev_params, xnew).detach().numpy())
             new_loss = np.array(new_losses).mean()
             kl = np.array(kls).mean()
-            if new_loss - fval < 0 and kl < args.max_kl:
+            if new_loss - fval < 0 and kl < self.args.max_kl:
                 set_flat_params_to(self.actor, xnew)
                 self.writer.add_scalar("n_backtracks", n_backtracks, i_episode)
                 ls_flag = True
@@ -126,7 +125,7 @@ class TRPOServer:
             print('Episode {}. Linear search is done but failed, using time {}'
                   .format(i_episode, time_ls))
 
-        self.log(i_episode)
+        return self.log(i_episode)
 
     def conjugate_gradient(self, states_list):
         conjugate_gradient_direction = conjugate_gradient_global(
@@ -148,64 +147,7 @@ class TRPOServer:
             print('Episode {}. Average reward {:.2f}'.format(
                 i_episode, average_reward))
             self.writer.add_scalar("Avg_return", average_reward, i_episode * self.args.agent_count * self.args.batch_size)
-        return 0
 
+        num_steps = i_episode * self.args.batch_size * self.args.agent_count
 
-if __name__ == '__main__':
-    import argparse
-
-    parser = argparse.ArgumentParser(description='TRPO with non-iid Environment')
-
-    # MDP
-    parser.add_argument('--seed', type=int, default=1, metavar='N',
-                        help='random seed (default: 1)')
-    parser.add_argument('--agent-count', type=int, default=10, metavar='N',
-                        help='number of agents (default: 100)')
-    parser.add_argument('--gamma', type=float, default=0.99, metavar='G',
-                        help='discount factor (default: 0.995)')
-    parser.add_argument('--env-name', default="2DNavigation-v1", metavar='G',
-                        help='name of the environment to run')
-    parser.add_argument('--tau', type=float, default=0.95, metavar='G',
-                        help='gae (default: 0.97)')
-
-    # Policy network (relu activation function)
-    parser.add_argument('--hidden-size', type=int, default=64,
-                        help='number of hidden units per layer')
-    parser.add_argument('--num-layers', type=int, default=2,
-                        help='number of hidden layers')
-
-    # Optimization
-    parser.add_argument('--max-kl', type=float, default=1e-1, metavar='G',
-                        help='max kl value (default: 1e-1)')
-    parser.add_argument('--cg-damping', type=float, default=1e-2, metavar='G',
-                        help='damping for conjugate gradient (default: 1e-2)')
-    parser.add_argument('--cg-iter', type=int, default=10, metavar='G',
-                        help='maximum iteration of conjugate gradient (default: 1e-1)')
-    parser.add_argument('--l2-reg', type=float, default=1e-3, metavar='G',
-                        help='l2 regularization parameter for critics (default: 1e-3)')
-    parser.add_argument('--batch-size', type=int, default=1000, metavar='N',
-                        help='per-iteration batch size for each agent (default: 1000)')
-    parser.add_argument('--use-running-state', action='store_true',
-                        help='use running state to normalize states')
-    parser.add_argument('--max-episode', type=int, default=1000, metavar='G',
-                        help='maximum number of episodes')
-
-    # Miscellaneous
-    parser.add_argument('--render', action='store_true',
-                        help='render the environment')
-    parser.add_argument('--log-interval', type=int, default=1, metavar='N',
-                        help='interval between training status logs (default: 10)')
-    parser.add_argument('--device', type=str, default='cpu',
-                        help='set the device (cpu or cuda)')
-    parser.add_argument('--num-workers', type=int, default=5,
-                        help='number of workers for parallel computing')
-
-    args = parser.parse_args()
-
-    args.device = torch.device(args.device
-                        if torch.cuda.is_available() else 'cpu')
-
-    trpo_server = TRPOServer(args=args)
-    # TODO: write a runner class to conduct trials under different parameter settings
-    for i_episode in range(args.max_episode):
-        trpo_server.step(i_episode=i_episode)
+        return num_steps, average_reward
