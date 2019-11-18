@@ -11,10 +11,10 @@ def _weight_init(module):
     if isinstance(module, nn.Linear):
         nn.init.xavier_uniform_(module.weight)
         module.bias.data.zero_()
-
+        # module.weight.data.zero_()
 class Policy(nn.Module):
     def __init__(self, input_size, output_size, hidden_sizes=(),
-                 nonlinearity=F.relu, init_std=1.0, min_std=1e-6):
+                 nonlinearity=torch.relu, init_std=1.0, min_std=1e-6):
 
         super(Policy, self).__init__()
         self.input_size = input_size
@@ -54,7 +54,7 @@ class Policy(nn.Module):
 
     def get_log_prob(self, x, actions):
         pi = self.forward(x)
-        return pi.log_prob(actions)
+        return pi.log_prob(actions).sum(1, keepdim=True)
 
 
     def select_action(self, state):
@@ -103,21 +103,37 @@ class Policy(nn.Module):
 #         return pi.log_prob(actions)
 
 class Value(nn.Module):
-    def __init__(self, num_inputs):
-        super(Value, self).__init__()
-        self.affine1 = nn.Linear(num_inputs, 64)
-        self.affine2 = nn.Linear(64, 64)
-        self.value_head = nn.Linear(64, 1)
-        self.value_head.weight.data.mul_(0.1)
-        self.value_head.bias.data.mul_(0.0)
+    def __init__(self, state_dim, hidden_size=(128, 128), activation='tanh'):
+        super().__init__()
+        if activation == 'tanh':
+            self.activation = torch.tanh
+        elif activation == 'relu':
+            self.activation = torch.relu
+        elif activation == 'sigmoid':
+            self.activation = torch.sigmoid
 
+        self.affine_layers = nn.ModuleList()
+        last_dim = state_dim
+        for nh in hidden_size:
+            l = nn.Linear(last_dim, nh).double()
+            # print(l.weight.data.dtype)
+            self.affine_layers.append(l)
+            last_dim = nh
+
+        self.value_head = nn.Linear(last_dim, 1).double()
+
+        # self.value_head.weight.data.mul_(0.1)
+        # self.value_head.bias.data.mul_(0.0)
+        self.value_head.apply(_weight_init)
     def forward(self, x):
-        x = torch.tanh(self.affine1(x))
-        x = torch.tanh(self.affine2(x))
+        for affine in self.affine_layers:
+            # print(affine.weight.data.dtype)
+            # print(0)
+            x = affine(x)
+            x = self.activation(x)
 
-        state_values = self.value_head(x)
-        return state_values
-
+        value = self.value_head(x)
+        return value
 
 def detach_distribution(pi):
     if isinstance(pi, Categorical):

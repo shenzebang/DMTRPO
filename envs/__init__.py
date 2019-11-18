@@ -1,5 +1,7 @@
 from gym.envs.registration import register
 
+# Biased Mujoco
+
 register(
     'HalfCheetah_FLVel-v0',
     entry_point='envs.utils:mujoco_wrapper',
@@ -50,4 +52,12 @@ register(
     '2DNavigation-v1',
     entry_point='envs.navigation:Navigation2DEnv_FL',
     max_episode_steps=100
+)
+
+# Quantized Mujoco
+register(
+    id='HopperQuantized-v0',
+    entry_point='envs.utils:mujoco_wrapper',
+    kwargs={'entry_point': 'envs.mujoco.hopper:HopperEnvQuantized'},
+    max_episode_steps=1000
 )

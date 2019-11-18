@@ -14,7 +14,7 @@ from core.agent_noniid import AgentCollection
 from utils.utils import *
 from core.running_state import ZFilter
 # from core.common import estimate_advantages_parallel
-from core.common_ray import estimate_advantages_parallel_noniid
+from core.common_ray_navi import estimate_advantages_parallel_noniid
 from torch.nn.utils.convert_parameters import parameters_to_vector, vector_to_parameters
 import numpy as np
 from torch.distributions.kl import kl_divergence
@@ -40,7 +40,7 @@ def main(args):
     num_actions = dummy_env.action_space.shape[0]
     #env.seed(args.seed)
     torch.manual_seed(args.seed)
-    policy_net = Policy(num_inputs, num_actions, hidden_sizes = (args.hidden_size,) * args.num_layers)
+    policy_net = Policy(num_inputs, num_actions, hidden_sizes = (args.hidden_size,) * args.num_layers, init_std=1/3)
     print("Network structure:")
     for name, param in policy_net.named_parameters():
         print("name: {}, size: {}".format(name, param.size()[0]))
@@ -158,7 +158,7 @@ def main(args):
             print('Episode {}. Average reward {:.2f}'.format(
                 i_episode, average_reward))
             writer.add_scalar("Avg_return", average_reward, i_episode*args.agent_count*batch_size)
-        if i_episode * args.agent_count * batch_size > 3e7:
+        if i_episode * args.agent_count * batch_size > 1e8:
             break
 
 
@@ -182,7 +182,7 @@ if __name__ == '__main__':
                         help='gae (default: 0.97)')
 
     # Policy network (relu activation function)
-    parser.add_argument('--hidden-size', type=int, default=8,
+    parser.add_argument('--hidden-size', type=int, default=64,
                         help='number of hidden units per layer')
     parser.add_argument('--num-layers', type=int, default=2,
                         help='number of hidden layers')
@@ -213,7 +213,7 @@ if __name__ == '__main__':
 
     args.device = torch.device(args.device
                         if torch.cuda.is_available() else 'cpu')
-    args.agent_count = 100
-    args.num_workers = 20
-    args.batch_size = 2000
+    # args.agent_count = 100
+    # args.num_workers = 20
+    # args.batch_size = 2000
     main(args)

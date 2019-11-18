@@ -90,9 +90,10 @@ class Navigation2DEnv_FL(gym.Env):
         return self._state
 
     def step(self, action):
-        reward = -np.dot(self._state, action)/np.linalg.norm(self._state)/np.linalg.norm(action)
+        angle_reward = -np.dot(self._state, action)/np.linalg.norm(self._state)/np.linalg.norm(action)
         self._state = self._state + action
-        assert self.action_space.contains(action)
+        self._state = np.clip(self._state, -10., 10.)
+        # assert self.action_space.contains(action)
         x = self._state[0]
         y = self._state[1]
         speed = np.dot(action, action)
@@ -101,7 +102,10 @@ class Navigation2DEnv_FL(gym.Env):
         #     reward = -np.log(distance/4) - speed*.5
         # else:
         #     reward = -np.log(distance/8) - speed * .5
-        reward = reward - speed * .5 -np.log(distance)
+        # reward = reward - speed * .5 -np.log(distance)
+        speed_penalty = speed
+        # reward = angle_reward*np.abs(speed_penalty) - speed_penalty
+        reward = - speed_penalty - np.log(distance)
         # reward =  - (x ** 2 + y ** 2) - speed*1
         # done = ((np.abs(x) < 1) and (np.abs(y) < 1))
         done = np.linalg.norm(self._state)<.1

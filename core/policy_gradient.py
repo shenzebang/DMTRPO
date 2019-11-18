@@ -32,7 +32,7 @@ def compute_PG(pid, policy_net, value_net, states, actions, returns, advantages)
                 if param.grad is not None:
                     param.grad.data.fill_(0)
 
-            values_ = value_net(Variable(states))
+            values_ = value_net(Variable(states).float())
 
             value_loss = (values_ - targets).pow(2).mean()
 
@@ -51,7 +51,14 @@ def compute_PG(pid, policy_net, value_net, states, actions, returns, advantages)
     # vector_to_parameters(torch.Tensor(value_net_update_params), value_net.parameters())
 
     log_probs = policy_net.get_log_prob(states.double(), actions)
+    # print(actions.shape)
+    # print(states.shape)
+    # print(log_probs.shape)
     loss = -(advantages * torch.exp(log_probs - log_probs.detach())).mean()
+    # print(states)
+    # print(advantages)
+    # print(log_probs)
+    # print(loss)
     grads = torch.autograd.grad(loss, policy_net.parameters())
     loss_grad = parameters_to_vector(grads)
 
@@ -62,7 +69,7 @@ def compute_policy_gradient_parallel(policy_net, value_net, states_list, actions
     result_ids = []
     num_agents = len(advantages_list)
     for advantages, returns, states, actions, pid in zip(advantages_list, returns_list, states_list, actions_list, range(num_agents)):
-        result_id = compute_PG.remote(pid, policy_net, value_net, states.float(), actions, returns.float(), advantages)
+        result_id = compute_PG.remote(pid, policy_net, value_net, states, actions, returns.float(), advantages)
         result_ids.append(result_id)
 
     policy_gradients = [None]*num_agents
@@ -72,7 +79,7 @@ def compute_policy_gradient_parallel(policy_net, value_net, states_list, actions
         pid, policy_gradient, value_net_update_param = ray.get(result_id)
         policy_gradients[pid] = policy_gradient.numpy()
         value_net_update_params[pid] = value_net_update_param
-
+    # print(policy_gradient)
     return policy_gradients, value_net_update_params
 
 def compute_policy_gradient_parallel_noniid(policy_net, value_nets_list, states_list, actions_list, returns_list, advantages_list):

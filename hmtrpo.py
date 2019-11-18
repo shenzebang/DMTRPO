@@ -4,8 +4,9 @@ import gym
 import scipy.optimize
 from tensorboardX import SummaryWriter
 
-from core.models import *
+from core.models import Value
 
+from core.mlp_policy import Policy
 from torch.autograd import Variable
 from torch import Tensor
 import torch.tensor as tensor
@@ -41,7 +42,8 @@ def main(args):
     env.seed(args.seed)
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
-    policy_net = Policy(num_inputs, num_actions, hidden_sizes = (args.hidden_size,) * args.num_layers)
+    # policy_net = Policy(num_inputs, num_actions, hidden_sizes = (args.hidden_size,) * args.num_layers)
+    policy_net = Policy(env.observation_space.shape[0], env.action_space.shape[0], log_std=-1.0)
     print("Network structure:")
     for name, param in policy_net.named_parameters():
         print("name: {}, size: {}".format(name, param.size()[0]))
@@ -156,23 +158,6 @@ def main(args):
         rewards = [log['avg_reward'] for log in logs]
         average_reward = np.array(rewards).mean()
 
-        # render
-        # state = env.reset()
-        # traj = []
-        # for _ in range(100):
-        #     action = policy_net.select_action(torch.tensor(state)).numpy()
-        #     state, reward, done, _ = env.step(action)
-        #     traj.append(state)
-        #     if done:
-        #         break
-        # import matplotlib.pyplot as plt
-        # traj = np.array(traj)
-        # f = plt.figure()
-        # plt.plot(traj[:,0], traj[:,1])
-        # plt.xlim(-1,1)
-        # plt.ylim(-1,1)
-        # plt.show()
-
         if i_episode % args.log_interval == 0:
             print('Episode {}. Average reward {:.2f}'.format(
                 i_episode, average_reward))
@@ -193,11 +178,11 @@ if __name__ == '__main__':
                         help='random seed (default: 1)')
     parser.add_argument('--agent-count', type=int, default=100, metavar='N',
                         help='number of agents (default: 100)')
-    parser.add_argument('--gamma', type=float, default=0.995, metavar='G',
+    parser.add_argument('--gamma', type=float, default=0.99, metavar='G',
                         help='discount factor (default: 0.995)')
     parser.add_argument('--env-name', default="HalfCheetah-v2", metavar='G',
                         help='name of the environment to run')
-    parser.add_argument('--tau', type=float, default=0.97, metavar='G',
+    parser.add_argument('--tau', type=float, default=0.95, metavar='G',
                         help='gae (default: 0.97)')
 
     # Policy network (relu activation function)
@@ -232,10 +217,4 @@ if __name__ == '__main__':
 
     args.device = torch.device(args.device
                         if torch.cuda.is_available() else 'cpu')
-    args.agent_count = 100
-    args.batch_size = 1000
-    args.max_kl = 0.01
-    args.num_workers = 20
-    args.env_name = '2DNavigation-v1'
-    args.seed = 111
     main(args)

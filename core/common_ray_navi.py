@@ -38,7 +38,7 @@ def estimate_advantages(memory, value_net, gamma, tau, device='cpu', dtype=torch
     advantages = rewards.unsqueeze(1) - values
     # advantages = advantages.unsqueeze(1)
     # print("adv shape {}".format(advantages.shape))
-    advantages = (advantages - advantages.mean()) / advantages.std()
+    # advantages = (advantages - advantages.mean()) / advantages.std()
     advantages, returns, states, actions = to_device(device, advantages, returns, states, actions)
 
     return (pid, advantages, returns, states, actions)

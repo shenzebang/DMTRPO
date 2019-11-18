@@ -11,7 +11,7 @@ from core.agent_noniid import AgentCollection
 from utils.utils import *
 from core.running_state import ZFilter
 # from core.common import estimate_advantages_parallel
-from core.common_ray_navi import estimate_advantages_parallel_noniid
+from core.common_ray import estimate_advantages_parallel_noniid
 from torch.nn.utils.convert_parameters import parameters_to_vector, vector_to_parameters
 import numpy as np
 from torch.distributions.kl import kl_divergence
@@ -36,7 +36,7 @@ def main(args):
     num_actions = dummy_env.action_space.shape[0]
     #env.seed(args.seed)
     torch.manual_seed(args.seed)
-    policy_net = Policy(num_inputs, num_actions, hidden_sizes = (args.hidden_size,) * args.num_layers, init_std=.5)
+    policy_net = Policy(num_inputs, num_actions, hidden_sizes = (args.hidden_size,) * args.num_layers, init_std=1)
     # print('Episode 0. Policy std {}'.format(torch.exp(policy_net.sigma).data))
     print("Network structure:")
     for name, param in policy_net.named_parameters():
@@ -45,15 +45,20 @@ def main(args):
     matrix_dim = flat_param.size()[0]
     print("number of total parameters: {}".format(matrix_dim))
     value_nets_list = [Value(num_inputs) for _ in range(args.agent_count)]
-    batch_size = args.batch_size
-    running_state = ZFilter((num_inputs,), clip=5)
 
-    algo = "TRPO"
-    logdir = "./algo_{}/env_{}/batchsize_{}_nworkers_{}_seed_{}_time{}".format(algo, str(args.env_name), batch_size, args.agent_count, args.seed, time())
+    algorithm_name = "TRPO"
+    logdir = "./logs/algo_{}/env_{}/batchsize_{}_nworkers_{}_seed_{}_time{}".format(algorithm_name, str(args.env_name), args.batch_size, args.agent_count, args.seed, time())
     writer = SummaryWriter(logdir)
 
-    agents = AgentCollection(args.env_name, policy_net, 'cpu', running_state=running_state, render=args.render,
-                             num_agents=args.agent_count, num_parallel_workers=args.num_workers)
+    agents = AgentCollection(
+        env_name=args.env_name,
+        policy=policy_net,
+        min_batch_size=args.batch_size,
+        num_agents=args.agent_count,
+        device=args.device,
+        num_parallel_workers=args.num_workers,
+        use_running_state=args.use_running_state
+    )
 
     def trpo_loss(advantages, states, actions, params, params_trpo_ls):
         # This is the negative trpo objective
@@ -87,7 +92,7 @@ def main(args):
         # Sample Trajectories
         print('Episode {}. Sampling trajectories...'.format(i_episode))
         time_begin = time()
-        memories, logs = agents.collect_samples_noniid(batch_size, False)
+        memories, logs = agents.collect_samples_noniid()
         time_sample = time() - time_begin
         print('Episode {}. Sampling trajectories is done, using time {}.'.format(i_episode, time_sample))
 
@@ -164,8 +169,8 @@ def main(args):
         if i_episode % args.log_interval == 0:
             print('Episode {}. Average reward {:.2f}'.format(
                 i_episode, average_reward))
-            writer.add_scalar("Avg_return", average_reward, i_episode*args.agent_count*batch_size)
-        if i_episode * args.agent_count * batch_size > 1e8:
+            writer.add_scalar("Avg_return", average_reward, i_episode*args.agent_count*args.batch_size)
+        if i_episode * args.agent_count * args.batch_size > 1e8:
             break
 
 
@@ -181,11 +186,11 @@ if __name__ == '__main__':
                         help='random seed (default: 1)')
     parser.add_argument('--agent-count', type=int, default=10, metavar='N',
                         help='number of agents (default: 100)')
-    parser.add_argument('--gamma', type=float, default=0.995, metavar='G',
+    parser.add_argument('--gamma', type=float, default=0.99, metavar='G',
                         help='discount factor (default: 0.995)')
     parser.add_argument('--env-name', default="2DNavigation-v1", metavar='G',
                         help='name of the environment to run')
-    parser.add_argument('--tau', type=float, default=0.97, metavar='G',
+    parser.add_argument('--tau', type=float, default=0.95, metavar='G',
                         help='gae (default: 0.97)')
 
     # Policy network (relu activation function)
@@ -205,6 +210,8 @@ if __name__ == '__main__':
                         help='l2 regularization parameter for critics (default: 1e-3)')
     parser.add_argument('--batch-size', type=int, default=1000, metavar='N',
                         help='per-iteration batch size for each agent (default: 1000)')
+    parser.add_argument('--use-running-state', action='store_true',
+                        help='use running state to normalize states')
 
     # Miscellaneous
     parser.add_argument('--render', action='store_true',
