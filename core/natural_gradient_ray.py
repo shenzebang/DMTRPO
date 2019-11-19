@@ -50,6 +50,7 @@ def conjugate_gradient(policy_net, states, pg, max_kl=1e-2, cg_damping=1e-2, cg_
     shs = 0.5 * (stepdir * fvp(stepdir)).sum(0, keepdim=True)
     lm = torch.sqrt(shs / max_kl)
     fullstep = stepdir / lm[0]
+    # fullstep = shs
 
     return (pid, fullstep)
 
@@ -137,6 +138,7 @@ def conjugate_gradient_global(policy_net, states_list, pg_list, max_kl=1e-2, cg_
     shs = 0.5 * (stepdir * fvp(stepdir)).sum(0, keepdim=True)
     lm = torch.sqrt(shs / max_kl)
     fullstep = stepdir / lm[0]
+    # fullstep = shs
 
     policy_net = policy_net.to('cpu')
     return fullstep.to('cpu')
