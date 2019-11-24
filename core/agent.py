@@ -63,7 +63,7 @@ def _sample_memory(env, actor, min_batch_size, use_running_state):
             state = running_state(state)
         reward_episode = 0
         for t in range(10000):
-            state_var = tensor(state).unsqueeze(0)
+            state_var = tensor(state).unsqueeze(0).double()
             with torch.no_grad():
                 action = actor.select_action(state_var)[0].numpy()
             action = int(action) if actor.is_disc_action else action.astype(np.float64)
