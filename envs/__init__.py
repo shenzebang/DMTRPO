@@ -64,7 +64,7 @@ register(
 register(
     id='HalfCheetahQuantized-v0',
     entry_point='envs.utils:mujoco_wrapper',
-    kwargs={'entry_point': 'envs.mujoco.halfcheetah:HalfCheetahEnvQuantized'},
+    kwargs={'entry_point': 'envs.mujoco.half_cheetah:HalfCheetahEnvQuantized'},
     max_episode_steps=1000
 )
 register(
