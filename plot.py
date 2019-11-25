@@ -12,10 +12,10 @@ matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 matplotlib.rcParams['figure.autolayout'] = True
 
-parser = argparse.ArgumentParser(description='Plot experiment result')
+parser = argparse.ArgumentParser(description='Plot experiment results')
 parser.add_argument('--list', nargs='+', help='algorimthms to plot')
 parser.add_argument('--env-name', type=str, help='env-name')
-parser.add_argument('--num-repeat', type=int, help='num_repeat')
+parser.add_argument('--num-repeat', type=int, help='num-repeat')
 
 args = parser.parse_args()
 algo_list = args.list
