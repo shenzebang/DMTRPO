@@ -166,8 +166,8 @@ class HalfCheetahEnv_Bias(HalfCheetahEnv):
 
 class HalfCheetahEnvQuantized(HalfCheetahEnv_):
     def __init__(self):
-        #self.quantize_level = 3 ** np.random.randint(low=0, high=1, size=1)
-        self.quantize_level = np.random.randint(low=-1, high=3, size=1)
+        self.quantize_level = 3 ** np.random.randint(low=0, high=3, size=1)[0]
+        # self.quantize_level = np.random.randint(low=-1, high=3, size=1)
         # print(self.quantize_level)
         super(HalfCheetahEnvQuantized, self).__init__()
 
@@ -179,8 +179,9 @@ class HalfCheetahEnvQuantized(HalfCheetahEnv_):
         reward_ctrl = - 0.1 * np.square(action).sum()
         reward_run = (xposafter - xposbefore) / self.dt
         reward = reward_ctrl + reward_run
-        #reward = np.floor(reward / self.quantize_level) * self.quantize_level
-        reward = round(reward, self.quantize_level)
+        if self.quantize_level != 1:
+            reward = np.floor(reward / self.quantize_level) * self.quantize_level
+        #reward = round(reward, self.quantize_level)
         #print(reward)
         done = False
         return ob, reward, done, dict(reward_run=reward_run, reward_ctrl=reward_ctrl)
