@@ -61,3 +61,15 @@ register(
     kwargs={'entry_point': 'envs.mujoco.hopper:HopperEnvQuantized'},
     max_episode_steps=1000
 )
+register(
+    id='HalfCheetahQuantized-v0',
+    entry_point='envs.utils:mujoco_wrapper',
+    kwargs={'entry_point': 'envs.mujoco.half_cheetah:HalfCheetahEnvQuantized'},
+    max_episode_steps=1000
+)
+register(
+    id='Walker2dQuantized-v0',
+    entry_point='envs.utils:mujoco_wrapper',
+    kwargs={'entry_point': 'envs.mujoco.walker2d:Walker2dEnvQuantized'},
+    max_episode_steps=1000
+)
