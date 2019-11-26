@@ -83,7 +83,7 @@ register(
     id='ReacherQuantized-v0',
     entry_point='envs.utils:mujoco_wrapper',
     kwargs={'entry_point': 'envs.mujoco.reacher:ReacherEnvQuantized'},
-    max_episode_steps=1000
+    max_episode_steps=50
 )
 register(
     id='AntQuantized-v0',
