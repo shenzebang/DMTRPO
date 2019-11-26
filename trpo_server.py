@@ -104,9 +104,8 @@ class TRPOServer:
     def log(self, i_episode):
         rewards = [log['avg_reward'] for log in self.log_list]
         average_reward = np.array(rewards).mean()
-
         if i_episode % self.args.log_interval == 0:
-            print('Episode {}. Average reward {:.2f}'.format(
+            print('Episode {}. Average reward {}'.format(
                 i_episode, average_reward))
             self.writer.add_scalar("Avg_return", average_reward, i_episode * self.args.agent_count * self.args.batch_size)
 

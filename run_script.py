@@ -23,7 +23,6 @@ class Runner(object):
             self.server = LocalTRPOServer(args=args)
 
 
-
     def train(self):
         steps = []
         avg_rewards = []

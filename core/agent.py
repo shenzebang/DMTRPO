@@ -106,9 +106,8 @@ def _process_memory(memory, critic, gamma, tau, dtype=torch.double):
     # with torch.no_grad():
     values = critic(states).detach()
     rewards, masks, values = to_device(torch.device('cpu'), rewards, masks, values)
-    tensor_type = type(rewards)
-    deltas = tensor_type(rewards.size(0), 1)
-    returns = tensor_type(rewards.size(0), 1)
+    deltas = torch.zeros((rewards.size(0), 1), dtype=dtype)
+    returns = torch.zeros((rewards.size(0), 1), dtype=dtype)
     advantages = torch.zeros((rewards.size(0), 1), dtype=dtype)
     prev_value = 0
     prev_advantage = 0
