@@ -166,9 +166,11 @@ class HalfCheetahEnv_Bias(HalfCheetahEnv):
 
 class HalfCheetahEnvQuantized(HalfCheetahEnv_):
     def __init__(self):
-        self.quantize_level = 3 ** np.random.randint(low=0, high=3, size=1)[0]
+        # self.quantize_level = 3 ** np.random.randint(low=0, high=3, size=1)[0]
         # self.quantize_level = np.random.randint(low=-1, high=3, size=1)
         # print(self.quantize_level)
+        self.quantize_index = np.random.randint(low=0, high=3, size=1)[0]
+        self.quantize_level = [0.1, 0.5, 1.0][self.quantize_index]
         super(HalfCheetahEnvQuantized, self).__init__()
 
     def step(self, action):

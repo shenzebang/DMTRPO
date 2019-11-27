@@ -43,10 +43,10 @@ class HopperEnv_Bias(HopperEnv_):
 
 class HopperEnvQuantized(HopperEnv_):
     def __init__(self):
-        self.quantize_level = 3 ** np.random.randint(low=0, high=3, size=1)[0]
+        self.quantize_index = np.random.randint(low=0, high=3, size=1)[0]
+        self.quantize_level = [0.1, 0.5, 1.0][self.quantize_index]
         # print(self.quantize_level)
         super(HopperEnvQuantized, self).__init__()
-
 
     def step(self, a):
         posbefore = self.sim.data.qpos[0]
@@ -57,8 +57,8 @@ class HopperEnvQuantized(HopperEnv_):
         reward += alive_bonus
         reward -= 1e-3 * np.square(a).sum()
         # quantize the reward
-        if self.quantize_level != 1:
-            reward = np.floor(reward/self.quantize_level)*self.quantize_level
+        reward = np.floor(reward/self.quantize_level)*self.quantize_level
+        # print(reward)
         s = self.state_vector()
         done = not (np.isfinite(s).all() and (np.abs(s[2:]) < 100).all() and
                     (height > .7) and (abs(ang) < .2))
