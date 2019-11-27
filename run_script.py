@@ -73,6 +73,8 @@ if __name__ == '__main__':
                         help='use running state to normalize states')
     parser.add_argument('--max-episode', type=int, default=1000, metavar='G',
                         help='maximum number of episodes')
+    parser.add_argument('--step-size', type=float, default=1, metavar='G',
+                        help='step size (default: 1)')
 
     # Miscellaneous
     parser.add_argument('--render', action='store_true',

@@ -47,7 +47,7 @@ def _compute_kl(actor, states, flat_params=None, example_named_parameters=None):
 
 def _sample_memory(env, actor, min_batch_size, use_running_state):
     max_episode_steps = env._max_episode_steps
-    torch.randn(1)
+    # torch.randn(1)
     log = dict()
     memory = Memory()
     num_steps = 0

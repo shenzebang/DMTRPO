@@ -43,6 +43,7 @@ class TRPOServer:
             use_running_state=args.use_running_state
         )
         self.log_list = []
+        self.step_size = args.step_size
 
     def step(self, i_episode):
         print('Episode {}. map_pg...'.format(i_episode))
@@ -80,7 +81,7 @@ class TRPOServer:
         fval = self.agents.trpo_loss()
         ls_flag = False
         for (n_backtracks, stepfrac) in enumerate(0.5 ** np.arange(10)):
-            xnew = prev_params + stepfrac * natural_gradient_direction
+            xnew = prev_params + self.step_size * stepfrac * natural_gradient_direction
             new_loss = self.agents.trpo_loss(xnew)
             kl = self.agents.compute_kl(xnew)
             if new_loss - fval < 0 and kl < self.args.max_kl:
