@@ -73,3 +73,27 @@ register(
     kwargs={'entry_point': 'envs.mujoco.walker2d:Walker2dEnvQuantized'},
     max_episode_steps=1000
 )
+register(
+    id='SwimmerQuantized-v0',
+    entry_point='envs.utils:mujoco_wrapper',
+    kwargs={'entry_point': 'envs.mujoco.swimmer:SwimmerEnvQuantized'},
+    max_episode_steps=1000
+)
+register(
+    id='ReacherQuantized-v0',
+    entry_point='envs.utils:mujoco_wrapper',
+    kwargs={'entry_point': 'envs.mujoco.reacher:ReacherEnvQuantized'},
+    max_episode_steps=50
+)
+register(
+    id='AntQuantized-v0',
+    entry_point='envs.utils:mujoco_wrapper',
+    kwargs={'entry_point': 'envs.mujoco.ant:AntEnvQuantized'},
+    max_episode_steps=1000
+)
+register(
+    id='HumanoidQuantized-v0',
+    entry_point='envs.utils:mujoco_wrapper',
+    kwargs={'entry_point': 'envs.mujoco.humanoid:HumanoidEnvQuantized'},
+    max_episode_steps=1000
+)

@@ -29,3 +29,27 @@ class HumanoidEnv_Bias(HumanoidEnv_):
 
     def get_bias(self):
         return self.bias
+
+class HumanoidEnvQuantized(HumanoidEnv_):
+    def __init__(self):
+        self.quantize_level = 3 ** np.random.randint(low=0, high=3, size=1)[0]
+        # self.quantize_level = np.random.randint(low=-1, high=3, size=1)
+        # print(self.quantize_level)
+        super(HumanoidEnvQuantized, self).__init__()
+
+    def step(self, a):
+        pos_before = mass_center(self.model, self.sim)
+        self.do_simulation(a, self.frame_skip)
+        pos_after = mass_center(self.model, self.sim)
+        alive_bonus = 5.0
+        data = self.sim.data
+        lin_vel_cost = 0.25 * (pos_after - pos_before) / self.model.opt.timestep
+        quad_ctrl_cost = 0.1 * np.square(data.ctrl).sum()
+        quad_impact_cost = .5e-6 * np.square(data.cfrc_ext).sum()
+        quad_impact_cost = min(quad_impact_cost, 10)
+        reward = lin_vel_cost - quad_ctrl_cost - quad_impact_cost + alive_bonus
+        if self.quantize_level != 1:
+            reward = np.floor(reward / self.quantize_level) * self.quantize_level
+        qpos = self.sim.data.qpos
+        done = bool((qpos[2] < 1.0) or (qpos[2] > 2.0))
+        return self._get_obs(), reward, done, dict(reward_linvel=lin_vel_cost, reward_quadctrl=-quad_ctrl_cost, reward_alive=alive_bonus, reward_impact=-quad_impact_cost)
