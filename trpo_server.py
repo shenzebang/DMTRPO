@@ -80,7 +80,7 @@ class TRPOServer:
         n_backtracks = 0
         fval = self.agents.trpo_loss()
         ls_flag = False
-        for (n_backtracks, stepfrac) in enumerate(0.5 ** np.arange(10)):
+        for (n_backtracks, stepfrac) in enumerate(0.9 ** np.arange(-5, 20)):
             xnew = prev_params + self.step_size * stepfrac * natural_gradient_direction
             new_loss = self.agents.trpo_loss(xnew)
             kl = self.agents.compute_kl(xnew)
