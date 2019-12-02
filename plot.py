@@ -11,7 +11,7 @@ import argparse
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 matplotlib.rcParams['figure.autolayout'] = True
-plt.switch_backend('agg')
+#plt.switch_backend('agg')
 
 parser = argparse.ArgumentParser(description='Plot experiment results')
 parser.add_argument('--list', nargs='+', help='algorimthms to plot')
@@ -65,5 +65,5 @@ ax = plt.subplot(111)
 ax.xaxis.offsetText.set_fontsize(30)
 ax.yaxis.offsetText.set_fontsize(30)
 plt.legend(fontsize = 'xx-large', loc = 'upper left')
-plt.savefig('./figure.pdf')
+#plt.savefig('./figure.pdf')
 plt.show()

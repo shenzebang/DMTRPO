@@ -256,7 +256,7 @@ class AgentCollection:
             vector_to_parameters(torch.from_numpy(critic_update), self.critics[pid].parameters())
 
         print("\t success rate {}".format(num_episodes_success / num_episodes))
-
+        print("\t total num_episodes {}".format(num_episodes))
         return self.states_list, self.log_list, self.actor_gradient_list
 
     def trpo_loss(self, xnew=None):
