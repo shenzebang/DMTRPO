@@ -55,6 +55,8 @@ if __name__ == '__main__':
                         help='number of hidden units per layer')
     parser.add_argument('--num-layers', type=int, default=2,
                         help='number of hidden layers')
+    parser.add_argument('--init-std', type=float, default=1.0,
+                        help='initial std of Gaussian policy')
 
     # Optimization
     parser.add_argument('--algo', default="trpo", metavar='G',

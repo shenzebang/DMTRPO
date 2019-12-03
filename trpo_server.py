@@ -28,7 +28,7 @@ class TRPOServer:
         self.args = args
         self.envs = [gym.make(self.args.env_name) for _ in range(self.args.agent_count)]
         self.writer = SummaryWriter(logdir)
-        self.actor = Policy(num_inputs, num_actions, hidden_sizes = (args.hidden_size,) * args.num_layers, init_std=1)
+        self.actor = Policy(num_inputs, num_actions, hidden_sizes = (args.hidden_size,) * args.num_layers, init_std=args.init_std)
         self.critics = [Value(num_inputs) for _ in range(args.agent_count)]
         self.agents = AgentCollection(
             envs=self.envs,
