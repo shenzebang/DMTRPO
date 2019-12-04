@@ -75,6 +75,8 @@ def _sample_memory(env, actor, min_batch_size, use_running_state):
             memory.push(state, action, mask, next_state, reward)
             if done:
                 break
+            if num_steps + t+1 >= min_batch_size:
+                break
             state = next_state
 
         if t+1 < max_episode_steps:

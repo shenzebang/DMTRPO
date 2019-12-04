@@ -42,19 +42,21 @@ if __name__ == '__main__':
     parser.add_argument('--seed', type=int, default=1, metavar='N',
                         help='random seed (default: 1)')
     parser.add_argument('--agent-count', type=int, default=10, metavar='N',
-                        help='number of agents (default: 100)')
+                        help='number of agents (default: 10)')
     parser.add_argument('--gamma', type=float, default=0.99, metavar='G',
-                        help='discount factor (default: 0.995)')
+                        help='discount factor (default: 0.99)')
     parser.add_argument('--env-name', default="2DNavigation-v1", metavar='G',
                         help='name of the environment to run')
     parser.add_argument('--tau', type=float, default=0.95, metavar='G',
-                        help='gae (default: 0.97)')
+                        help='gae (default: 0.95)')
 
     # Policy network (relu activation function)
     parser.add_argument('--hidden-size', type=int, default=64,
-                        help='number of hidden units per layer')
+                        help='number of hidden units per layer (default 64)')
     parser.add_argument('--num-layers', type=int, default=2,
                         help='number of hidden layers')
+    parser.add_argument('--init-std', type=float, default=1.0,
+                        help='initial std of Gaussian policy')
 
     # Optimization
     parser.add_argument('--algo', default="trpo", metavar='G',
@@ -80,7 +82,7 @@ if __name__ == '__main__':
     parser.add_argument('--render', action='store_true',
                         help='render the environment')
     parser.add_argument('--log-interval', type=int, default=1, metavar='N',
-                        help='interval between training status logs (default: 10)')
+                        help='interval between training status logs (default: 1)')
     parser.add_argument('--device', type=str, default='cpu',
                         help='set the device (cpu or cuda)')
     parser.add_argument('--num-workers', type=int, default=5,
