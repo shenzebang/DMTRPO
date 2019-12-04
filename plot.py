@@ -7,11 +7,13 @@ import pandas as pd
 import os
 import matplotlib
 import argparse
+import scikits.bootstrap as sci
+import numpy as np
 
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 matplotlib.rcParams['figure.autolayout'] = True
-#plt.switch_backend('agg')
+plt.switch_backend('agg')
 
 parser = argparse.ArgumentParser(description='Plot experiment results')
 parser.add_argument('--list', nargs='+', help='algorimthms to plot')
@@ -44,10 +46,10 @@ for algo in algo_list:
 loc_list = ['Run{}'.format(i) for i in range(num_repeat)]
 for algo in algo_list:
     algo_pd_dict[algo]['reward_smooth'] = algo_pd_dict[algo].loc[:,loc_list].mean(1).ewm(span=3).mean()
-    algo_pd_dict[algo]['std'] = algo_pd_dict[algo].loc[:,loc_list].std(1).ewm(span=3).mean()
-    algo_pd_dict[algo]['low'] = algo_pd_dict[algo]['reward_smooth'] - algo_pd_dict[algo]['std']
-    algo_pd_dict[algo]['high'] = algo_pd_dict[algo]['reward_smooth'] + algo_pd_dict[algo]['std']
-
+    ci = sci.ci(algo_pd_dict[algo].loc[:,loc_list].T, alpha=0.1, statfunction=lambda x: np.average(x, axis=0))
+    algo_pd_dict[algo]['low'] = ci[0]
+    algo_pd_dict[algo]['high'] = ci[1]
+    
 #figure configuration
 fig = plt.figure(figsize=(14, 7))
 plt.title(env_name, fontsize=50)
@@ -65,5 +67,5 @@ ax = plt.subplot(111)
 ax.xaxis.offsetText.set_fontsize(30)
 ax.yaxis.offsetText.set_fontsize(30)
 plt.legend(fontsize = 'xx-large', loc = 'upper left')
-#plt.savefig('./figure.pdf')
-plt.show()
+plt.savefig('./figure.pdf')
+#plt.show()
