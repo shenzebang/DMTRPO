@@ -104,8 +104,8 @@ class Navigation2DEnv_FL(gym.Env):
         #     reward = -np.log(distance/8) - speed * .5
         # reward = reward - speed * .5 -np.log(distance)
         speed_penalty = speed
-        # reward = angle_reward*np.abs(speed_penalty) - speed_penalty
-        reward = - speed_penalty - np.log(distance)
+        reward = angle_reward*np.abs(speed_penalty) - speed_penalty
+        # reward = - speed_penalty - np.log(distance)
         # reward =  - (x ** 2 + y ** 2) - speed*1
         # done = ((np.abs(x) < 1) and (np.abs(y) < 1))
         done = np.linalg.norm(self._state)<.1
