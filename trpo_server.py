@@ -46,6 +46,8 @@ class TRPOServer:
         self.step_size = args.step_size
 
     def step(self, i_episode):
+        _ = torch.randn(1)
+
         print('Episode {}. map_pg...'.format(i_episode))
         time_begin = time()
         states_list, log_list, actor_gradient_list = self.agents.map_pg()

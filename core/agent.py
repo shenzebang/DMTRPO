@@ -57,6 +57,10 @@ def _sample_memory(env, actor, min_batch_size, use_running_state):
     num_episodes = 0
     running_state = ZFilter((env.observation_space.shape[0],), clip=5)
     num_episodes_success = 0
+
+    action_bias = (env.action_space.high + env.action_space.low)/2.0
+    action_scale = (env.action_space.high - env.action_space.low)/2.0
+
     while num_steps < min_batch_size:
         state = env.reset()
         if use_running_state:
@@ -66,6 +70,9 @@ def _sample_memory(env, actor, min_batch_size, use_running_state):
             state_var = tensor(state).unsqueeze(0).double()
             with torch.no_grad():
                 action = actor.select_action(state_var)[0].numpy()
+
+                action = action * action_scale + action_bias
+
             action = int(action) if actor.is_disc_action else action.astype(np.float64)
             next_state, reward, done, _ = env.step(action)
             reward_episode += reward
@@ -167,7 +174,7 @@ def _critic_update(critic, states, returns):
     value_net_curr_params = get_flat_params_from(critic).detach().numpy()
     value_loss = get_value_loss(returns)
     value_net_update_params, _, opt_info = optimize.fmin_l_bfgs_b(value_loss, value_net_curr_params,
-                                                                        maxiter=25)
+                                                                        maxiter=50)
     return value_net_update_params
 
 
