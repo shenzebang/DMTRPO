@@ -1,7 +1,3 @@
-"""
-Run this script in /DMTRPO, change the env_name and algo_name to plot.
-
-"""
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
@@ -16,39 +12,45 @@ matplotlib.rcParams['figure.autolayout'] = True
 plt.switch_backend('agg')
 
 parser = argparse.ArgumentParser(description='Plot experiment results')
-parser.add_argument('--list', nargs='+', help='algorimthms to plot')
+parser.add_argument('--alg-list', nargs='+', help='algorimthms to plot')
 parser.add_argument('--env-name', type=str, help='env-name')
 parser.add_argument('--num-repeat', type=int, help='num-repeat')
+parser.add_argument('--workers', type=int, help='workers')
 
 args = parser.parse_args()
-algo_list = args.list
+
+alg_list = args.alg_list
 env_name = args.env_name
 num_repeat = args.num_repeat
-nums_algo = len(algo_list)
+num_alg = len(alg_list)
 legent_name = {}
-algo_pd_dict = {}
-for i, algo in enumerate(algo_list):
-    legent_name['algo{}'.format(i)] = algo
-    algo_pd_dict[algo] = pd.DataFrame()
+alg_pd_dict = {}
+for i, alg in enumerate(alg_list):
+    legent_name['alg{}'.format(i)] = alg
+    alg_pd_dict[alg] = pd.DataFrame()
 
 # load csv
-for algo in algo_list:
-    path = './logs/algo_{}/env_{}'.format(algo, env_name)
+for alg in alg_list:
+    if 'trpo' in alg:
+        path = './trpo/logs/algo_{}/env_{}/workers{}'.format(alg, env_name, args.workers)
+    else:
+        path = './ppo/logs/algo_{}/env_{}/workers{}'.format(alg, env_name, args.workers)
+
     file_list = os.listdir(path)
     # only includes csvs
     for i, csv in enumerate(file_list):
         csv_path = os.path.join(path, csv)
         data = pd.read_csv(csv_path)
         if i == 0:
-            algo_pd_dict[algo]['Step'] = data['steps']
-        algo_pd_dict[algo]['Run{}'.format(i)] = data['avg_rewards0']
+            alg_pd_dict[alg]['step'] = data['step']
+        alg_pd_dict[alg]['Run{}'.format(i)] = data['reward']
 
-loc_list = ['Run{}'.format(i) for i in range(num_repeat)]
-for algo in algo_list:
-    algo_pd_dict[algo]['reward_smooth'] = algo_pd_dict[algo].loc[:,loc_list].mean(1).ewm(span=3).mean()
-    ci = sci.ci(algo_pd_dict[algo].loc[:,loc_list].T, alpha=0.1, statfunction=lambda x: np.average(x, axis=0))
-    algo_pd_dict[algo]['low'] = ci[0]
-    algo_pd_dict[algo]['high'] = ci[1]
+loc_list = ['Run{}'.format(i) for i in range(num_repeat * args.workers)]
+for alg in alg_list:
+    alg_pd_dict[alg]['reward_smooth'] = alg_pd_dict[alg].loc[:,loc_list].mean(1).ewm(span=3).mean()
+    ci = sci.ci(alg_pd_dict[alg].loc[:,loc_list].T, alpha=0.1, statfunction=lambda x: np.average(x, axis=0))
+    alg_pd_dict[alg]['low'] = ci[0]
+    alg_pd_dict[alg]['high'] = ci[1]
     
 #figure configuration
 fig = plt.figure(figsize=(14, 7))
@@ -59,13 +61,13 @@ plt.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
 plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
 
 #plot
-for algo in algo_list:
-    plt.plot(algo_pd_dict[algo]['Step'], algo_pd_dict[algo]['reward_smooth'], label=algo)
-    plt.fill_between(algo_pd_dict[algo]['Step'], algo_pd_dict[algo]["low"] , algo_pd_dict[algo]["high"], alpha=0.2)
+for alg in alg_list:
+    plt.plot(alg_pd_dict[alg]['step'], alg_pd_dict[alg]['reward_smooth'], label=alg)
+    plt.fill_between(alg_pd_dict[alg]['step'], alg_pd_dict[alg]["low"] , alg_pd_dict[alg]["high"], alpha=0.2)
 
 ax = plt.subplot(111)
 ax.xaxis.offsetText.set_fontsize(30)
 ax.yaxis.offsetText.set_fontsize(30)
 plt.legend(fontsize = 'xx-large', loc = 'upper left')
-plt.savefig('./figure.pdf')
+plt.savefig('./{}.pdf'.format(env_name))
 #plt.show()
