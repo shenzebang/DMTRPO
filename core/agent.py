@@ -252,6 +252,7 @@ class AgentCollection:
         self.log_list = [None] * self.num_agents
         self.actor_gradient_list = [None] * self.num_agents
 
+        critic_param_list = []
         for result_id in result_ids:
             pid, advantages, returns, states, actions, log, actor_gradient, critic_update = ray.get(result_id)
             num_episodes += log['num_episodes']
@@ -262,7 +263,13 @@ class AgentCollection:
             self.actions_list[pid] = actions
             self.log_list[pid] = log
             self.actor_gradient_list[pid] = actor_gradient.numpy()
-            vector_to_parameters(torch.from_numpy(critic_update), self.critics[pid].parameters())
+            critic_param_list.append(critic_update)
+            # vector_to_parameters(torch.from_numpy(critic_update), self.critics[pid].parameters())
+
+        critic_param = torch.from_numpy(np.array(critic_param_list).mean(axis=0))
+
+        for pid in range(self.num_agents):
+            vector_to_parameters(critic_param, self.critics[pid].parameters())
 
         print("\t success rate {}".format(num_episodes_success / num_episodes))
         print("\t total num_episodes {}".format(num_episodes))
