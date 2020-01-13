@@ -1,76 +1,17 @@
 import os
 import gym
-import numpy as np
 import torch
 from torch.multiprocessing import Process
 import torch.distributed as dist
-import random
-from collections import namedtuple
 from time import time
 import csv
+from collections import namedtuple
 
+from utils import EnvSampler
 from models import PolicyNetwork, ValueNetwork
 from local_trpo import LocalTRPO
 from dmtrpo import DMTRPO
 from global_trpo import GlobalTRPO
-
-
-# Taken from
-# https://github.com/pytorch/tutorials/blob/master/Reinforcement%20(Q-)Learning%20with%20PyTorch.ipynb
-
-Transition = namedtuple('Transition', 
-            ('state', 'action', 'reward', 'next_state', 'mask'))
-
-class Memory(object):
-    def __init__(self):
-        self.memory = []
-
-    def push(self, *args):
-        self.memory.append(Transition(*args))
-
-    def sample(self):
-        return Transition(*zip(*self.memory))
-def __len__(self):
-        return len(self.memory)
-
-class EnvSampler(object):
-    def __init__(self, env, max_episode_step=1000):
-        self.env = env
-        self.max_episode_step = max_episode_step
-        self.env_init()
-        self.action_scale = (env.action_space.high - env.action_space.low)/2
-        self.action_bias = (env.action_space.high + env.action_space.low)/2
-    
-    # action_encode and action_decode project action into [-1, 1]^n
-    def action_encode(self, action):
-        return (action - self.action_bias)/self.action_scale
-    
-    def action_decode(self, action_):
-        return action_ * self.action_scale + self.action_bias
-    
-    def env_init(self):
-        self.state = self.env.reset()
-        self.done = False
-        self.episode_step = 1
-    
-    def __call__(self, get_action, batch_size):
-        # I suggest batch_size to be the multiple of max_episode_step.
-        memory = Memory()
-        batch_reward = 0.0
-        for _ in range(batch_size):
-            action_ = get_action(self.state)
-            action =self.action_decode(action_)
-            next_state, reward, self.done, _ = self.env.step(action) 
-            # The env will automatically clamp action into [action_space.low, action_space.high]^n
-            batch_reward += reward
-            mask = 1.0 if not self.done else 0.0
-            memory.push(self.state, action_, reward, next_state, mask)
-            self.state = next_state
-            self.episode_step += 1
-            if self.done or self.episode_step > self.max_episode_step:
-                self.env_init()
-        return batch_reward, memory.sample()
-
 
 # The properties of args:
 # 1. env_name (default = 'HalfCheetah-v2')
@@ -99,16 +40,14 @@ def run(rank, size, args):
     # 1.Set some necessary seed.
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed_all(args.seed)
-    torch.manual_seed(args.seed)
-    np.random.seed(args.seed)
     env.seed(args.seed)
 
     # 2.Create actor, critic, EnvSampler() and PPO.
     state_size = env.observation_space.shape[0]
     action_size = env.action_space.shape[0]
     actor = PolicyNetwork(state_size, action_size, 
-                hidden_sizes=args.hidden_sizes, init_std=args.init_std)
-    critic = ValueNetwork(state_size, hidden_sizes=args.hidden_sizes)
+                hidden_sizes=args.hidden_sizes, init_std=args.init_std).to(device)
+    critic = ValueNetwork(state_size, hidden_sizes=args.hidden_sizes).to(device)
     env_sampler = EnvSampler(env, args.max_episode_step)
     trpo_args = {
         'actor': actor, 
@@ -135,12 +74,19 @@ def run(rank, size, args):
         action = actor.select_action(state)
         return action.detach().cpu().numpy()[0]
 
+    def get_value(state):
+        with torch.no_grad():
+            state = torch.FloatTensor(state).unsqueeze(0).to(device)
+            value = critic(state)
+        return value.cpu().numpy()[0, 0]
+
     # 3.Start training.
     total_step = 0
     for episode in range(1, args.episodes+1):
-        episode_reward, samples = env_sampler(get_action, args.batch_size)
+        episode_reward, samples = env_sampler(get_action, args.batch_size, get_value)
         actor_loss, value_loss = alg.update(*samples)
-        yield episode*args.max_episode_step, episode_reward, actor_loss, value_loss
+        total_step += args.batch_size
+        yield total_step, episode_reward, actor_loss, value_loss
 
 # The properties of args:
 # 0. alg_name (default = 'hmtrpo')
@@ -192,7 +138,6 @@ def parallel_run(start_time, rank, size, fn, args, backend='gloo'):
     writer = csv.writer(csvfile)
     writer.writerow(['step', 'reward'])
     for step, reward, actor_loss, value_loss in fn(rank, size, args):
-        reward = reward * args.max_episode_step / args.batch_size
         writer.writerow([step, reward])
         print('Rank {}, Step {}: Reward = {}, actor_loss = {}, value_loss = {}'.format(rank, step, reward, actor_loss, value_loss))
 
@@ -202,8 +147,8 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description='Run experiment with optional args')
-    parser.add_argument('--alg', default="local_ppo", metavar='G',
-                        help='name of the algorithm to run (default: local_ppo)')
+    parser.add_argument('--alg', default="local_trpo", metavar='G',
+                        help='name of the algorithm to run (default: local_trpo)')
     parser.add_argument('--env_name', default="HalfCheetah-v2", metavar='G',
                         help='name of environment to run (default: HalfCheetah-v2)')
     parser.add_argument('--device', default='cpu', metavar='G',

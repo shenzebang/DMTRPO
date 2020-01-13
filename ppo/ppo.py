@@ -17,8 +17,8 @@ class PPO(object):
                 device=torch.device("cpu"),
                 pi_lr=3e-4,
                 v_lr=1e-3):
-        self.actor = actor.to(device)
-        self.critic = critic.to(device)
+        self.actor = actor
+        self.critic = critic
         self.actor_optim = Adam(self.actor.parameters(), lr=pi_lr)
         self.critic_optim = Adam(self.critic.parameters(), lr=v_lr)
         self.clip = clip

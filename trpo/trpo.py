@@ -34,8 +34,8 @@ class TRPO(object):
                 damping=0.1,
                 max_kl=0.01,
                 device=torch.device("cpu")):
-        self.actor = actor.to(device)
-        self.critic = critic.to(device)
+        self.actor = actor
+        self.critic = critic
         self.critic_optim = Adam(self.critic.parameters(), value_lr)
         self.value_steps_per_update = value_steps_per_update
         self.cg_steps = cg_steps
