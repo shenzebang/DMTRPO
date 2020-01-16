@@ -110,7 +110,7 @@ class TRPO(object):
             actor_loss = 0.0
             prev_params = get_flat_params_from(self.actor)
             # Line search:
-            alpha = 2
+            alpha = 1
             for i in range(steps):
                 alpha *= 0.9
                 new_params = prev_params + alpha * fullstep

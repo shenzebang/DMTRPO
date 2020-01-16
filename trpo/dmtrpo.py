@@ -28,15 +28,14 @@ class DMTRPO(LocalTRPO):
         self.average_variables(loss_grad)
         return loss_grad
     
-    def cg(self, A, b, iters=10, accuracy=1e-10):
-        x = super(DMTRPO, self).cg(A, b, iters, accuracy)
-        self.average_variables(x)
-        return x
+#   def cg(self, A, b, iters=10, accuracy=1e-10):
+#       x = super(DMTRPO, self).cg(A, b, iters, accuracy)
+#       self.average_variables(x)
+#       return x
 
     def linesearch(self, state, action, advantage, fullstep, steps=10):
         start_time = time()
         self.average_variables(fullstep)
-        rank = dist.get_rank()
         actor_loss = super(DMTRPO, self).linesearch(state, action, advantage, fullstep, steps)
         print('DMTRPO linesearch() uses {}s.'.format(time() - start_time)) 
         return actor_loss

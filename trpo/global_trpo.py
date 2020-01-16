@@ -56,6 +56,33 @@ class GlobalTRPO(DMTRPO):
         print("GlobalTRPO's cg() uses {}s.".format(time() - start_time))
         return x
 
+    def linesearch(self, state, action, advantage, fullstep, steps=10):
+        start_time = time()
+        self.average_variables(fullstep)
+        with torch.no_grad():
+            actor_loss = 0.0
+            prev_params = get_flat_params_from(self.actor)
+            # Line search:
+            alpha = 1
+            for i in range(steps):
+                alpha *= 0.9
+                new_params = prev_params + alpha * fullstep
+                set_flat_params_to(self.actor, new_params)
+                kl_loss = self.get_kl_loss(state)
+                log_prob_action = self.actor.get_log_prob(state, action)
+                actor_loss = self.get_actor_loss(advantage, log_prob_action, self.log_prob_action_old)
+
+                self.average_variables(kl_loss)
+                self.average_variables(actor_loss)
+
+                if actor_loss > self.actor_loss_old and kl_loss < self.max_kl:
+                    print("linesearch successes at step {}".format(i))
+                    return actor_loss
+            set_flat_params_to(self.actor, prev_params)
+            print("linesearch failed")
+        print("GlobalTRPO: linesearch uses {}s.".format(time() - start_time))
+        return actor_loss
+
     def update_critic(self, state, target_value):
         start_time = time()
         rank = dist.get_rank()
