@@ -10,23 +10,6 @@ from models import PolicyNetwork, ValueNetwork
 from trpo import TRPO
 
 
-# The properties of args:
-# 1. env_name (default = 'HalfCheetah-v2')
-# 2. device (default = 'cuda:0')
-# 3. seed (default = 1)
-# 4. hidden_sizes (default = (64, 64))
-# 5. max_episode_step (default = 1000)
-# 6. batch_size (default = 1000)
-# 7. episodes (default = 1000)
-# 8. value_lr (default = 1e-3)
-# 9. value_steps_per_update (default=80)
-# 10. cg_steps (default = 20)
-# 11. lineasearch_steps (default = 20)
-# 12. gamma (default = 0.99)
-# 13. tau (default = 0.97)
-# 14. damping (default = 0.1)
-# 15. max_kl (default = 0.01)
-
 def main(args):
     env = gym.make(args.env_name)
     device = torch.device(args.device)
@@ -43,7 +26,7 @@ def main(args):
     actor = PolicyNetwork(state_size, action_size, 
                 hidden_sizes=args.hidden_sizes, init_std=args.init_std).to(device)
     critic = ValueNetwork(state_size, hidden_sizes=args.hidden_sizes).to(device)
-    env_sampler = EnvSampler(env, args.max_episode_step)
+    env_sampler = EnvSampler(env, args.max_episode_step, args.reward_step)
     trpo = TRPO(actor, 
                 critic,
                 args.value_lr,
@@ -91,6 +74,9 @@ def main(args):
 # 13. tau (default = 0.97)
 # 14. damping (default = 0.1)
 # 15. max_kl (default = 0.01)
+# 16. init_std (default = 1.0)
+# 17. reward_step (default = 0)
+
 Args = namedtuple('Args', 
                     ('env_name',
                     'device',
@@ -107,7 +93,9 @@ Args = namedtuple('Args',
                     'tau',
                     'damping',
                     'max_kl',
-                    'init_std'))
+                    'init_std',
+                    'reward_step'))
+
 if __name__ == '__main__':
     import argparse
 
@@ -116,6 +104,10 @@ if __name__ == '__main__':
                         help='random seed (default: 0)')
     parser.add_argument('--batch', type=int, default=1000, metavar='N',
                         help='number of batch size (default: 1000)')
+    parser.add_argument('--episodes', type=int, default=1000, metavar='N',
+                        help='number of eperiment episodes(default: 1000)')
+    parser.add_argument('--reward_step', type=int, default=0, metavar='N',
+                        help='the unit of reward step (default: 0)')
     parser.add_argument('--env_name', default='HalfCheetah-v2', metavar='G',
                         help='name of environment name (default: HalfCheetah-v2)')
     parser.add_argument('--device', default='cpu', metavar='G',
@@ -128,7 +120,7 @@ if __name__ == '__main__':
                 (64, 64),           # hidden_sizes
                 1000,               # max_episode_step
                 args.batch,         # batch_size
-                1000,               # episodes
+                args.episodes,      # episodes
                 1e-3,               # value_lr
                 50,                 # value_steps_per_update
                 20,                 # cg_steps
@@ -137,10 +129,11 @@ if __name__ == '__main__':
                 0.97,               # tau
                 0.1,                # damping
                 0.02,               # max_kl
-                1.0)                # init_std
+                1.0,                # init_std
+                args.reward_step)   # reward_step
                 
-    logdir = "./logs/algo_trpo/env_{}".format(alg_args.env_name)
-    file_name = 'algo_trpo_env_{}_batch{}_seed{}_time{}.csv'.format(alg_args.env_name, alg_args.batch_size, alg_args.seed, time())
+    logdir = "./logs/alg_trpo/env_{}_reward_step_{}".format(alg_args.env_name, alg_args.reward_step)
+    file_name = 'alg_trpo_env_{}_reward_step_{}_batch{}_seed{}_time{}.csv'.format(alg_args.env_name, alg_args.reward_step, alg_args.batch_size, alg_args.seed, time())
     if not os.path.exists(logdir):
         os.makedirs(logdir)
     full_name = os.path.join(logdir, file_name)

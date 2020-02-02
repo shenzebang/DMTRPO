@@ -42,18 +42,6 @@ class LocalTRPO(TRPO):
         for param in model.parameters():
             dist.broadcast(param.data, src=0)
 
-    def cg(self, A, b, iters=10, accuracy=1e-10):
-        x = super(LocalTRPO, self).cg(A, b, iters, accuracy)
-        self.average_variables(x)
-        return x
-
-#   def linesearch(self, state, action, advantage, fullstep, steps=10):
-#       start_time = time()
-#       self.average_variables(fullstep)
-#       actor_loss = super(LocalTRPO, self).linesearch(state, action, advantage, fullstep, steps)
-#       print('LocalTRPO linesearch() uses {}s.'.format(time() - start_time)) 
-#       return actor_loss
-
     def update(self, state, action, reward, next_state, mask):
         actor_loss, critic_loss = super(LocalTRPO, self).update(state, action, reward, next_state, mask)
         start_time = time()

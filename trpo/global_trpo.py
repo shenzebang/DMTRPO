@@ -1,12 +1,14 @@
 import torch
 import torch.distributed as dist
 import torch.nn.functional as F
+
 from trpo import TRPO
-from dmtrpo import DMTRPO
+from hmtrpo import HMTRPO
+from utils import get_flat_params_from, set_flat_params_to
 
 from time import time
 
-class GlobalTRPO(DMTRPO):
+class GlobalTRPO(HMTRPO):
     def __init__(self, 
                 actor, 
                 critic, 
@@ -31,7 +33,6 @@ class GlobalTRPO(DMTRPO):
             dist.reduce(param.grad.data, dst=0)
             if rank == 0:
                 param.grad.data /= size
-
     
     def cg(self, A, b, iters=10, accuracy=1e-10):
         start_time = time()
@@ -59,6 +60,7 @@ class GlobalTRPO(DMTRPO):
     def linesearch(self, state, action, advantage, fullstep, steps=10):
         start_time = time()
         self.average_variables(fullstep)
+        self.average_variables(self.actor_loss_old)
         with torch.no_grad():
             actor_loss = 0.0
             prev_params = get_flat_params_from(self.actor)

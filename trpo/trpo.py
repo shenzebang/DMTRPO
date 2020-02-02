@@ -5,21 +5,7 @@ from torch.optim import Adam
 
 from time import time
 
-def get_flat_params_from(model):
-    params = []
-    for param in model.parameters():
-        params.append(param.data.view(-1))
-
-    flat_params = torch.cat(params)
-    return flat_params
-
-def set_flat_params_to(model, flat_params):
-    prev_ind = 0
-    for param in model.parameters():
-        flat_size = param.numel()
-        param.data.copy_(
-            flat_params[prev_ind:prev_ind + flat_size].view(param.size()))
-        prev_ind += flat_size
+from utils import get_flat_params_from, set_flat_params_to
 
 class TRPO(object):
     def __init__(self, 

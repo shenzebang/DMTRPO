@@ -12,10 +12,11 @@ matplotlib.rcParams['figure.autolayout'] = True
 plt.switch_backend('agg')
 
 parser = argparse.ArgumentParser(description='Plot experiment results')
-parser.add_argument('--alg-list', nargs='+', help='algorimthms to plot')
-parser.add_argument('--env-name', default='Hopper-v2', type=str, help='env-name')
+parser.add_argument('--alg_list', nargs='+', help='algorimthms to plot')
+parser.add_argument('--env_name', default='HalfCheetah-v2', type=str, help='env-name')
 parser.add_argument('--workers', default=2, type=int, help='workers')
-parser.add_argument('--exp-num', default=0, type=int, help='The number of experiment.(0 means all.)')
+parser.add_argument('--exp_num', default=0, type=int, help='The number of experiment.(0 means all.)')
+parser.add_argument('--reward_step', default=0, type=int, help='reward step')
 
 args = parser.parse_args()
 
@@ -32,13 +33,13 @@ start, end = 0, 1
 # load csv
 for alg in alg_list:
     if alg == 'trpo':
-        path = './trpo/logs/algo_{}/env_{}'.format(alg, env_name)
+        path = './trpo/logs/alg_{}/env_{}_reward_step_{}'.format(alg, env_name, args.reward_step)
     elif alg == 'ppo':
-        path = './ppo/logs/algo_{}/env_{}'.format(alg, env_name)
+        path = './ppo/logs/alg_{}/env_{}_reward_step_{}'.format(alg, env_name, args.reward_step)
     elif 'trpo' in alg:
-        path = './trpo/logs/algo_{}/env_{}/workers{}'.format(alg, env_name, args.workers)
+        path = './trpo/logs/alg_{}/env_{}_reward_step_{}/workers{}'.format(alg, env_name, args.reward_step, args.workers)
     else:
-        path = './ppo/logs/algo_{}/env_{}/workers{}'.format(alg, env_name, args.workers)
+        path = './ppo/logs/alg_{}/env_{}_reward_step_{}/workers{}'.format(alg, env_name, args.reward_step, args.workers)
 
     file_list = os.listdir(path)
     file_list.sort(key=lambda x:x[x.find('time'):])
@@ -65,7 +66,8 @@ for alg in alg_list:
     
 #figure configuration
 fig = plt.figure(figsize=(14, 7))
-plt.title(env_name, fontsize=50)
+title = env_name if args.reward_step == 0 else '{}-rs{}'.format(env_name, args.reward_step)
+plt.title(title, fontsize=50)
 plt.xlabel('System probes(state-action pair)', fontsize=35)
 plt.ylabel('Average return', fontsize=35)
 plt.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
@@ -73,14 +75,12 @@ plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
 
 #plot
 for alg in alg_list:
-    alg_label = 'hmtrpo' if alg == 'dmtrpo' else alg
-        
-    plt.plot(alg_pd_dict[alg]['step'], alg_pd_dict[alg]['reward_smooth'], label=alg_label)
+    plt.plot(alg_pd_dict[alg]['step'], alg_pd_dict[alg]['reward_smooth'], label=alg)
     plt.fill_between(alg_pd_dict[alg]['step'], alg_pd_dict[alg]["low"] , alg_pd_dict[alg]["high"], alpha=0.2)
 
 ax = plt.subplot(111)
 ax.xaxis.offsetText.set_fontsize(30)
 ax.yaxis.offsetText.set_fontsize(30)
 plt.legend(fontsize = 'xx-large', loc = 'upper left')
-plt.savefig('./{}.pdf'.format(env_name))
+plt.savefig('./{}.pdf'.format(title))
 #plt.show()
