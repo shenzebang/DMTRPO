@@ -1,22 +1,28 @@
 import gym
 import torch
-from time import time
 import os
 import csv
+import numpy as np
+from time import time
 from collections import namedtuple
 
 from utils import EnvSampler
 from models import PolicyNetwork, ValueNetwork
 from ppo import PPO
+from navigation import Navigation2DEnv_FL
 
 def main(args):
-    env = gym.make(args.env_name)
-    device = torch.device(args.device)
-
     # 1.Set some necessary seed.
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed_all(args.seed)
+    np.random.seed(args.seed)
+
+    if args.env_name == 'Navigation2DEnv-FL':
+        env = Navigation2DEnv_FL()
+    else:
+        env = gym.make(args.env_name)
     env.seed(args.seed)
+    device = torch.device(args.device)
 
     # 2.Create actor, critic, EnvSampler() and PPO.
     state_size = env.observation_space.shape[0]

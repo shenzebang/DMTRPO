@@ -6,6 +6,7 @@ import torch.distributed as dist
 from time import time
 import csv
 from collections import namedtuple
+import numpy as np
 
 from utils import EnvSampler
 from models import PolicyNetwork, ValueNetwork
@@ -14,18 +15,24 @@ from local_trpo2 import LocalTRPO2
 from local_trpo3 import LocalTRPO3
 from hmtrpo import HMTRPO
 from global_trpo import GlobalTRPO
+from navigation import Navigation2DEnv_FL
 
 def run(rank, size, args):
-    env = gym.make(args.env_name)
+    # 1.Set some necessary seed.
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed_all(args.seed)
+    np.random.seed(args.seed)
+
+    if args.env_name == 'Navigation2DEnv-FL':
+        env = Navigation2DEnv_FL()
+    else:
+        env = gym.make(args.env_name)
+    env.seed(args.seed)
+
     device = args.device
     if device == 'cuda':
         device = 'cuda:{}'.format(rank % torch.cuda.device_count())
     device = torch.device(device)
-
-    # 1.Set some necessary seed.
-    torch.manual_seed(args.seed)
-    torch.cuda.manual_seed_all(args.seed)
-    env.seed(args.seed)
 
     # 2.Create actor, critic, EnvSampler() and PPO.
     state_size = env.observation_space.shape[0]
