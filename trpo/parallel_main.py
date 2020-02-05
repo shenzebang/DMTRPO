@@ -200,7 +200,7 @@ if __name__ == "__main__":
 
     for rank in range(start_rank, end_rank):
         reward_step = args.reward_step[rank % num_reward_step]
-        seed = args.seed + rank // num_reward_step
+        seed = args.seed + rank
         alg_args = Args(args.alg,       # alg_name
                     args.env_name,      # env_name
                     args.device,        # device
